@@ -7,7 +7,7 @@ This file tracks what we have actually completed so far.
 | Item | Status | Notes |
 | --- | --- | --- |
 | Local git repo | `done` | Scaffolded on 2026-03-26 |
-| GitHub remote | `pending` | Will be set to `git@github.com:EFeng2005/ECE-567-p2.git` |
+| GitHub remote | `done` | `origin` set to `git@github.com:EFeng2005/ECE-567-p2.git` |
 | Upstream OGBench checkout | `pending` | Not cloned into `external/ogbench` yet |
 | Great Lakes SLURM template | `done` | Added under `cluster/greatlakes/slurm` |
 | Experiment tracking docs | `done` | `tracking/targets.md` and this file |
@@ -32,4 +32,3 @@ When runs start, record at least:
 - final success metric
 - path to raw logs
 - path to processed summary
-
