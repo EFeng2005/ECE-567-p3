@@ -33,6 +33,7 @@ See:
 - [tracking/targets.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/targets.md)
 - [tracking/status.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/status.md)
 - [docs/replication_scope.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/docs/replication_scope.md)
+- [docs/environment_setup.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/docs/environment_setup.md)
 - [cluster/greatlakes/README.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/cluster/greatlakes/README.md)
 
 ## Repository Layout
@@ -60,4 +61,3 @@ tracking/               What we plan to reproduce vs what we have reproduced
 
 - [OGBench repository](https://github.com/seohongpark/ogbench)
 - [OGBench project page](https://seohong.me/projects/ogbench/)
-

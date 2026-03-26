@@ -2,6 +2,10 @@
 
 This directory contains lightweight templates for launching OGBench jobs on Great Lakes.
 
+Before launching runs, read:
+
+- [docs/environment_setup.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/docs/environment_setup.md)
+
 ## Suggested Workflow
 
 1. Clone the upstream OGBench code into `external/ogbench`.
@@ -49,4 +53,3 @@ Start with:
 - one seed
 
 Then expand once logging, checkpoints, and runtime all look correct.
-
