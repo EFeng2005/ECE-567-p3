@@ -32,6 +32,8 @@ See:
 
 - [tracking/targets.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/targets.md)
 - [tracking/status.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/status.md)
+- [tracking/replication_matrix.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/replication_matrix.md)
+- [tracking/results_template.csv](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/results_template.csv)
 - [docs/replication_scope.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/docs/replication_scope.md)
 - [docs/environment_setup.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/docs/environment_setup.md)
 - [cluster/greatlakes/README.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/cluster/greatlakes/README.md)

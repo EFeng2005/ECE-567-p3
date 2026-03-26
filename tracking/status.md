@@ -8,9 +8,9 @@ This file tracks what we have actually completed so far.
 | --- | --- | --- |
 | Local git repo | `done` | Scaffolded on 2026-03-26 |
 | GitHub remote | `done` | `origin` set to `git@github.com:EFeng2005/ECE-567-p2.git` |
-| Upstream OGBench checkout | `pending` | Not cloned into `external/ogbench` yet |
+| Upstream OGBench checkout | `done` | Cloned into `external/ogbench` |
 | Great Lakes SLURM template | `done` | Added under `cluster/greatlakes/slurm` |
-| Experiment tracking docs | `done` | `tracking/targets.md` and this file |
+| Experiment tracking docs | `done` | Targets, status, replication matrix, and results template added |
 
 ## Benchmark Run Status
 
