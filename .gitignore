@@ -1,0 +1,46 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Experiment artifacts
+wandb/
+outputs/
+logs/
+checkpoints/
+tmp/
+
+# Local data
+data/
+datasets/
+scratch/
+
+# Results generated during runs
+results/raw/*
+results/processed/*
+results/figures/*
+
+# Keep lightweight placeholders and docs
+!results/raw/.gitkeep
+!results/processed/.gitkeep
+!results/figures/.gitkeep
+!results/README.md
+
+# Upstream benchmark checkout
+external/ogbench/
+
