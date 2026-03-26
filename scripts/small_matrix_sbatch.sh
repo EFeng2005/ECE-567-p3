@@ -39,7 +39,7 @@ submit_run() {
     "$SBATCH_SCRIPT"
 }
 
-# Recommended order from tracking/replication_matrix.md:
+# Recommended order from docs/plan/replication_matrix.md:
 # 1. antmaze-large-navigate-v0 + HIQL
 # 2. cube-double-play-v0 + HIQL
 # 3. antmaze-large-navigate-v0 + GCIQL

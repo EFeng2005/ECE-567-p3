@@ -4,7 +4,7 @@ This directory contains lightweight templates for launching OGBench jobs on Grea
 
 Before launching runs, read:
 
-- [docs/environment_setup.md](../../docs/environment_setup.md)
+- [environment_setup.md](environment_setup.md)
 
 ## Suggested Workflow
 
@@ -61,7 +61,7 @@ After the smoke test succeeds, the next two one-seed runs to queue are the offic
 If you want to submit the first four small-matrix runs in the recommended order, use:
 
 ```bash
-bash tracking/small_matrix_sbatch.sh
+bash scripts/small_matrix_sbatch.sh
 ```
 
 That submits:

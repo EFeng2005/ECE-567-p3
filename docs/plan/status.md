@@ -13,7 +13,7 @@ This file tracks what we have actually completed so far.
 | Great Lakes SLURM template | `done` | Added under `cluster/greatlakes/slurm` |
 | Great Lakes dataset override | `done` | `main.py` now accepts `--dataset_dir` and the SLURM template defaults to scratch when available |
 | Great Lakes wandb mode override | `done` | `main.py` now accepts `--wandb_mode=online|offline|disabled` |
-| Small-matrix submission script | `done` | `tracking/small_matrix_sbatch.sh` submits the first four benchmark runs with cluster defaults |
+| Small-matrix submission script | `done` | `scripts/small_matrix_sbatch.sh` submits the first four benchmark runs with cluster defaults |
 | Experiment tracking docs | `done` | Targets, status, replication matrix, and results template are all in the repo |
 
 ## Benchmark Run Status

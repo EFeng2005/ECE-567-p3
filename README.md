@@ -30,26 +30,27 @@ In the official OGBench codebase, the last family is usually split into:
 
 See:
 
-- [tracking/targets.md](tracking/targets.md)
-- [tracking/status.md](tracking/status.md)
-- [tracking/replication_matrix.md](tracking/replication_matrix.md)
-- [tracking/results_template.csv](tracking/results_template.csv)
-- [docs/replication_scope.md](docs/replication_scope.md)
-- [docs/environment_setup.md](docs/environment_setup.md)
-- [cluster/greatlakes/README.md](cluster/greatlakes/README.md)
+- [docs/README.md](docs/README.md)
+- [docs/plan/targets.md](docs/plan/targets.md)
+- [docs/plan/status.md](docs/plan/status.md)
+- [docs/plan/replication_matrix.md](docs/plan/replication_matrix.md)
+- [docs/plan/replication_scope.md](docs/plan/replication_scope.md)
+- [docs/setup/environment_setup.md](docs/setup/environment_setup.md)
+- [docs/setup/greatlakes.md](docs/setup/greatlakes.md)
+- [docs/report/phase1.md](docs/report/phase1.md)
+- [results/templates/results_template.csv](results/templates/results_template.csv)
 
 ## Repository Layout
 
 ```text
-cluster/greatlakes/     Great Lakes notes and SLURM scripts
-docs/                   Scope, benchmark notes, and writeup support
+cluster/greatlakes/     Great Lakes SLURM scripts
+docs/                   All project documentation (setup, plan, report)
 external/               Upstream code checked out locally (not yet added)
-reports/phase1/         Material for the Phase 1 report
 results/raw/            Raw run outputs and copied logs
 results/processed/      Aggregated tables and parsed summaries
 results/figures/        Plots used in the report
+results/templates/      CSV templates for run tracking
 scripts/                Helper scripts for bootstrap and syncing
-tracking/               What we plan to reproduce vs what we have reproduced
 ```
 
 ## Recommended Workflow
