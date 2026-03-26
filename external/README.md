@@ -12,3 +12,7 @@ Bootstrap it with:
 bash scripts/bootstrap_ogbench.sh
 ```
 
+That bootstrap helper also reapplies our tracked local OGBench patch so the checkout keeps:
+
+- `--dataset_dir`
+- `--wandb_mode=online|offline|disabled`

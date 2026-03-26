@@ -33,6 +33,12 @@ The official training implementation in `impls/requirements.txt` additionally ne
 
 ## Cluster-Specific Things To Prepare
 
+For the course allocation on Great Lakes, the Slurm account string is:
+
+- `ece567w26_class`
+
+That is the scheduler account you should pass to `sbatch`, even if people casually refer to it as `ece567-w26`.
+
 ### 1. Headless MuJoCo rendering
 
 For remote or headless nodes, set:
@@ -45,13 +51,21 @@ Without this, MuJoCo rendering may fail on the cluster.
 
 ### 2. Weights & Biases access
 
-The official training script logs to `wandb` by default, and the helper code initializes it in **online** mode.
+The official training script logs to `wandb` by default, but this repo now exposes a mode flag so cluster runs can stay offline.
 
-That means you should decide one of these before running:
+Supported modes:
 
-- log in to W&B on Great Lakes
-- set up a team account/token for the project
-- patch the logging helper to use offline or disabled mode for cluster runs
+- `--wandb_mode=online`
+- `--wandb_mode=offline`
+- `--wandb_mode=disabled`
+
+For Great Lakes smoke tests, I recommend starting with:
+
+```bash
+--wandb_mode=offline
+```
+
+The training entrypoint also respects `WANDB_MODE=online|offline|disabled` so the SLURM template can set this once.
 
 ### 3. Dataset storage path
 
@@ -63,13 +77,26 @@ By default, OGBench downloads datasets to:
 
 Important caveat:
 
-- the official `impls/main.py` path does **not** expose `dataset_dir` as a flag
-- it calls `ogbench.make_env_and_datasets(..., compact_dataset=True)` through `impls/utils/env_utils.py`
+- upstream OGBench still defaults to `~/.ogbench/data`
+- this repo now exposes `--dataset_dir=/path/to/data` through `impls/main.py`
 
-So if you want datasets on Great Lakes `scratch`, plan one of these:
+So on Great Lakes, you can point downloads at scratch directly:
 
-- make `~/.ogbench/data` a symlink to scratch storage
-- patch `impls/utils/env_utils.py` to pass a custom `dataset_dir`
+```bash
+--dataset_dir="$SCRATCH/ogbench/data"
+```
+
+The training entrypoint also respects `OGBENCH_DATASET_DIR=/path/to/data`.
+
+The bundled SLURM template defaults to `$SCRATCH/ogbench/data` when `SCRATCH` is available, and falls back to `~/.ogbench/data` otherwise.
+
+If you bootstrap OGBench with:
+
+```bash
+bash scripts/bootstrap_ogbench.sh
+```
+
+the repo's local patch is applied automatically so `impls/main.py` exposes both `--dataset_dir` and `--wandb_mode`.
 
 ### 4. RAM and runtime budgeting
 
@@ -127,13 +154,44 @@ Example:
 
 ```bash
 export MUJOCO_GL=egl
+export DATASET_DIR="${SCRATCH:-$HOME/.ogbench/data}"
+export SAVE_DIR="$PWD/results/raw/ogbench_runs"
 cd external/ogbench/impls
 python main.py \
   --env_name=antmaze-large-navigate-v0 \
   --agent=agents/hiql.py \
   --agent.high_alpha=3.0 \
   --agent.low_alpha=3.0 \
+  --dataset_dir="$DATASET_DIR" \
+  --save_dir="$SAVE_DIR" \
   --video_episodes=0 \
+  --wandb_mode=offline \
+  --seed=0
+```
+
+After that smoke test passes, the next two one-seed runs to queue are:
+
+```bash
+python main.py \
+  --env_name=cube-double-play-v0 \
+  --agent=agents/hiql.py \
+  --agent.high_alpha=3.0 \
+  --agent.low_alpha=3.0 \
+  --agent.subgoal_steps=10 \
+  --dataset_dir="$DATASET_DIR" \
+  --save_dir="$SAVE_DIR" \
+  --video_episodes=0 \
+  --wandb_mode=offline \
+  --seed=0
+
+python main.py \
+  --env_name=antmaze-large-navigate-v0 \
+  --agent=agents/gciql.py \
+  --agent.alpha=0.3 \
+  --dataset_dir="$DATASET_DIR" \
+  --save_dir="$SAVE_DIR" \
+  --video_episodes=0 \
+  --wandb_mode=offline \
   --seed=0
 ```
 
@@ -142,4 +200,3 @@ python main.py \
 - [OGBench README](https://github.com/seohongpark/ogbench/blob/master/README.md)
 - [OGBench training requirements](https://github.com/seohongpark/ogbench/blob/master/impls/requirements.txt)
 - [OGBench training entrypoint](https://github.com/seohongpark/ogbench/blob/master/impls/main.py)
-

@@ -1,0 +1,100 @@
+diff --git a/impls/main.py b/impls/main.py
+index 3660e03..73b0498 100644
+--- a/impls/main.py
++++ b/impls/main.py
+@@ -19,10 +19,32 @@ from utils.log_utils import CsvLogger, get_exp_name, get_flag_dict, get_wandb_vi
+ 
+ FLAGS = flags.FLAGS
+ 
++DEFAULT_WANDB_MODE = os.environ.get('WANDB_MODE', 'online').lower()
++if DEFAULT_WANDB_MODE not in ('online', 'offline', 'disabled'):
++    DEFAULT_WANDB_MODE = 'online'
++
+ flags.DEFINE_string('run_group', 'Debug', 'Run group.')
++flags.DEFINE_string(
++    'wandb_project',
++    os.environ.get('WANDB_PROJECT', 'OGBench'),
++    'Weights & Biases project name.',
++)
++flags.DEFINE_string('wandb_entity', os.environ.get('WANDB_ENTITY'), 'Weights & Biases entity.')
++flags.DEFINE_enum(
++    'wandb_mode',
++    DEFAULT_WANDB_MODE,
++    ['online', 'offline', 'disabled'],
++    'Weights & Biases logging mode.',
++)
++flags.DEFINE_string('wandb_name', None, 'Optional Weights & Biases run name override.')
+ flags.DEFINE_integer('seed', 0, 'Random seed.')
+ flags.DEFINE_string('env_name', 'antmaze-large-navigate-v0', 'Environment (dataset) name.')
+ flags.DEFINE_string('save_dir', 'exp/', 'Save directory.')
++flags.DEFINE_string(
++    'dataset_dir',
++    os.environ.get('OGBENCH_DATASET_DIR'),
++    'Optional directory to save/load OGBench datasets.',
++)
+ flags.DEFINE_string('restore_path', None, 'Restore path.')
+ flags.DEFINE_integer('restore_epoch', None, 'Restore epoch.')
+ 
+@@ -44,10 +66,17 @@ config_flags.DEFINE_config_file('agent', 'agents/gciql.py', lock_config=False)
+ 
+ def main(_):
+     # Set up logger.
+-    exp_name = get_exp_name(FLAGS.seed)
+-    setup_wandb(project='OGBench', group=FLAGS.run_group, name=exp_name)
++    exp_name = FLAGS.wandb_name or get_exp_name(FLAGS.seed)
++    run = setup_wandb(
++        entity=FLAGS.wandb_entity,
++        project=FLAGS.wandb_project,
++        group=FLAGS.run_group,
++        name=exp_name,
++        mode=FLAGS.wandb_mode,
++    )
+ 
+-    FLAGS.save_dir = os.path.join(FLAGS.save_dir, wandb.run.project, FLAGS.run_group, exp_name)
++    project_name = getattr(run, 'project', None) or FLAGS.wandb_project
++    FLAGS.save_dir = os.path.join(FLAGS.save_dir, project_name, FLAGS.run_group, exp_name)
+     os.makedirs(FLAGS.save_dir, exist_ok=True)
+     flag_dict = get_flag_dict()
+     with open(os.path.join(FLAGS.save_dir, 'flags.json'), 'w') as f:
+@@ -55,7 +84,11 @@ def main(_):
+ 
+     # Set up environment and dataset.
+     config = FLAGS.agent
+-    env, train_dataset, val_dataset = make_env_and_datasets(FLAGS.env_name, frame_stack=config['frame_stack'])
++    env, train_dataset, val_dataset = make_env_and_datasets(
++        FLAGS.env_name,
++        frame_stack=config['frame_stack'],
++        dataset_dir=FLAGS.dataset_dir,
++    )
+ 
+     dataset_class = {
+         'GCDataset': GCDataset,
+diff --git a/impls/utils/env_utils.py b/impls/utils/env_utils.py
+index 6b17e11..cc36e0d 100644
+--- a/impls/utils/env_utils.py
++++ b/impls/utils/env_utils.py
+@@ -76,18 +76,22 @@ class FrameStackWrapper(gymnasium.Wrapper):
+         return self.get_observation(), reward, terminated, truncated, info
+ 
+ 
+-def make_env_and_datasets(dataset_name, frame_stack=None):
++def make_env_and_datasets(dataset_name, frame_stack=None, dataset_dir=None):
+     """Make OGBench environment and datasets.
+ 
+     Args:
+         dataset_name: Name of the dataset.
+         frame_stack: Number of frames to stack.
++        dataset_dir: Optional directory to save/load OGBench datasets.
+ 
+     Returns:
+         A tuple of the environment, training dataset, and validation dataset.
+     """
+     # Use compact dataset to save memory.
+-    env, train_dataset, val_dataset = ogbench.make_env_and_datasets(dataset_name, compact_dataset=True)
++    make_kwargs = dict(compact_dataset=True)
++    if dataset_dir is not None:
++        make_kwargs['dataset_dir'] = dataset_dir
++    env, train_dataset, val_dataset = ogbench.make_env_and_datasets(dataset_name, **make_kwargs)
+     train_dataset = Dataset.create(**train_dataset)
+     val_dataset = Dataset.create(**val_dataset)
+ 

@@ -30,13 +30,13 @@ In the official OGBench codebase, the last family is usually split into:
 
 See:
 
-- [tracking/targets.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/targets.md)
-- [tracking/status.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/status.md)
-- [tracking/replication_matrix.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/replication_matrix.md)
-- [tracking/results_template.csv](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/results_template.csv)
-- [docs/replication_scope.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/docs/replication_scope.md)
-- [docs/environment_setup.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/docs/environment_setup.md)
-- [cluster/greatlakes/README.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/cluster/greatlakes/README.md)
+- [tracking/targets.md](tracking/targets.md)
+- [tracking/status.md](tracking/status.md)
+- [tracking/replication_matrix.md](tracking/replication_matrix.md)
+- [tracking/results_template.csv](tracking/results_template.csv)
+- [docs/replication_scope.md](docs/replication_scope.md)
+- [docs/environment_setup.md](docs/environment_setup.md)
+- [cluster/greatlakes/README.md](cluster/greatlakes/README.md)
 
 ## Repository Layout
 
@@ -58,6 +58,9 @@ tracking/               What we plan to reproduce vs what we have reproduced
 2. Validate one end-to-end run on a small state-based task.
 3. Reproduce a representative subset first.
 4. Expand only after we know the training pipeline is stable.
+
+The bootstrap helper also reapplies the repo-local OGBench patch so `--dataset_dir` and `--wandb_mode` stay
+available after a fresh clone on Great Lakes.
 
 ## Upstream References
 

@@ -4,10 +4,11 @@ This file is the detailed run-level plan for the OGBench replication.
 
 It complements:
 
-- [tracking/targets.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/targets.md)
-- [tracking/status.md](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/status.md)
-- [tracking/tier1_commands.sh](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/tier1_commands.sh)
-- [tracking/results_template.csv](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/results_template.csv)
+- [tracking/targets.md](targets.md)
+- [tracking/status.md](status.md)
+- [tracking/tier1_commands.sh](tier1_commands.sh)
+- [tracking/small_matrix_sbatch.sh](small_matrix_sbatch.sh)
+- [tracking/results_template.csv](results_template.csv)
 
 ## What This Matrix Covers
 
@@ -65,7 +66,10 @@ Recommended execution order:
 4. `T1-CUBE-GCIQL`
 5. Expand to the rest of Tier 1
 
+To submit exactly those first four runs on Great Lakes, use:
+
+- [tracking/small_matrix_sbatch.sh](small_matrix_sbatch.sh)
+
 Fill actual outcomes in:
 
-- [tracking/results_template.csv](/Users/e.y.feng/Documents/A.Umich/ece%20567/replication/tracking/results_template.csv)
-
+- [tracking/results_template.csv](results_template.csv)
