@@ -1,8 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=ogbench-train
 #SBATCH --output=ogbench-train-%j.out
-#SBATCH --account=ece567w26_class
-#SBATCH --time=12:00:00
+#SBATCH --account=chaijy2
+#SBATCH --partition=spgpu
+#SBATCH --time=24:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
@@ -21,22 +22,30 @@ EXTRA_ARGS="${EXTRA_ARGS:-}"
 WANDB_MODE="${WANDB_MODE:-offline}"
 SAVE_DIR="${SAVE_DIR:-$REPO_ROOT/results/raw/ogbench_runs}"
 
+# Use chaijy2 scratch space by default
 DEFAULT_DATASET_DIR="$HOME/.ogbench/data"
 if [ -n "${SCRATCH:-}" ]; then
   DEFAULT_DATASET_DIR="$SCRATCH/ogbench/data"
+elif [ -d "/scratch/chaijy_root/chaijy2" ]; then
+  DEFAULT_DATASET_DIR="/scratch/chaijy_root/chaijy2/$USER/ogbench/data"
 fi
 DATASET_DIR="${DATASET_DIR:-$DEFAULT_DATASET_DIR}"
 
 cd "$REPO_ROOT"
 
-# Uncomment and edit these lines to match the environment available on Great Lakes.
-# module purge
-# module load python
-# module load cuda
+# Load modules on Great Lakes
+module load python/3.10.4 cuda/12.3.0 2>/dev/null || true
 
 if [ -n "${VENV_PATH:-}" ]; then
   # shellcheck disable=SC1090
   source "$VENV_PATH/bin/activate"
+
+  # Add pip-installed NVIDIA CUDA libs to LD_LIBRARY_PATH so JAX can find them
+  NVIDIA_SITE="$VENV_PATH/lib/python3.10/site-packages/nvidia"
+  if [ -d "$NVIDIA_SITE" ]; then
+    NVIDIA_LD=$(find "$NVIDIA_SITE" -name "lib" -type d 2>/dev/null | tr '\n' ':')
+    export LD_LIBRARY_PATH="${NVIDIA_LD}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  fi
 fi
 
 export MUJOCO_GL="${MUJOCO_GL:-egl}"

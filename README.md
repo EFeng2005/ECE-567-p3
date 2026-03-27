@@ -1,4 +1,4 @@
-# ECE 567 Project 2: OGBench Replication
+# ECE 567 Project 3: OGBench Replication
 
 This repository is the working repo for our replication of **Project 3: OGBench**.
 
@@ -13,6 +13,12 @@ In the official OGBench codebase, the last family is usually split into:
 
 - `GCIVL` = Goal-Conditioned Implicit V-Learning
 - `GCIQL` = Goal-Conditioned Implicit Q-Learning
+
+We reproduce all five methods across three environment families:
+
+- **Locomotion**: `antmaze-large-navigate-v0`, `humanoidmaze-medium-navigate-v0`
+- **Manipulation**: `cube-double-play-v0`, `scene-play-v0`, `puzzle-3x3-play-v0`
+- **Powderworld**: `powderworld-medium-play-v0`
 
 ## Repo Goals
 

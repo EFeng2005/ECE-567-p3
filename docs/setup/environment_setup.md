@@ -33,11 +33,10 @@ The official training implementation in `impls/requirements.txt` additionally ne
 
 ## Cluster-Specific Things To Prepare
 
-For the course allocation on Great Lakes, the Slurm account string is:
+We use the **`chaijy2`** Slurm account (Dr. Chai's dedicated A40 nodes) for better GPU access:
 
-- `ece567w26_class`
-
-That is the scheduler account you should pass to `sbatch`, even if people casually refer to it as `ece567-w26`.
+- `chaijy2` — up to 20 A40 GPUs, no 8-hour wall time limit
+- `ece567w26_class` — fallback only (1 GPU max, 8h limit)
 
 ### 1. Headless MuJoCo rendering
 

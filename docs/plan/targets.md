@@ -16,35 +16,52 @@ In the official OGBench repo, that last group is represented by:
 - `GCIVL`
 - `GCIQL`
 
-## Recommended Scope
+## Recommended Scope (Phased Execution)
 
-### Tier 1: Core Reproduction
+Execution is split into three phases to get early signal before committing full compute.
 
-This is the smallest benchmark slice that is still broad enough for a credible Phase 1 report.
+### Phase A (Priority): 3 datasets x 5 methods x 1 seed = 15 runs
+
+This is the minimum viable slice. Run these first with seed 0 only.
 
 | Category | Dataset | Why include it | Methods |
 | --- | --- | --- | --- |
-| Locomotion | `antmaze-large-navigate-v0` | Standard, widely used navigation task | `CRL`, `HIQL`, `QRL`, `GCIQL` |
-| Locomotion | `humanoidmaze-medium-navigate-v0` | Harder long-horizon control | `CRL`, `HIQL`, `QRL`, `GCIQL` |
-| Manipulation | `cube-double-play-v0` | Simple manipulation baseline | `CRL`, `HIQL`, `QRL`, `GCIQL` |
-| Manipulation | `scene-play-v0` | Sequential reasoning task | `CRL`, `HIQL`, `QRL`, `GCIQL` |
-| Manipulation | `puzzle-3x3-play-v0` | Goal composition and combinatorics | `CRL`, `HIQL`, `QRL`, `GCIQL` |
+| Locomotion | `antmaze-large-navigate-v0` | Standard, widely used navigation task | `CRL`, `HIQL`, `QRL`, `GCIQL`, `GCIVL` |
+| Manipulation | `cube-double-play-v0` | Simple manipulation baseline | `CRL`, `HIQL`, `QRL`, `GCIQL`, `GCIVL` |
+| Powderworld | `powderworld-medium-play-v0` | Discrete pixel-based non-robotic task | `CRL`, `HIQL`, `QRL`, `GCIQL`, `GCIVL` |
 
-### Tier 2: Stretch Reproduction
+### Phase B (Expand Seeds): 3 datasets x 5 methods x 3 seeds = 45 runs
 
-Add these only after Tier 1 runs are stable and producing comparable trends.
+After Phase A succeeds, rerun the same 3 datasets with seeds 0, 1, 2 for error bars.
+
+### Phase C (Expand Datasets): 6 datasets x 5 methods x 3 seeds = 90 runs
+
+Add 3 more datasets to reach the full Tier 1 table.
+
+| Category | Dataset | Phase | Why include it | Methods |
+| --- | --- | --- | --- | --- |
+| Locomotion | `antmaze-large-navigate-v0` | A | Standard, widely used navigation task | `CRL`, `HIQL`, `QRL`, `GCIQL`, `GCIVL` |
+| Manipulation | `cube-double-play-v0` | A | Simple manipulation baseline | `CRL`, `HIQL`, `QRL`, `GCIQL`, `GCIVL` |
+| Powderworld | `powderworld-medium-play-v0` | A | Discrete pixel-based non-robotic task | `CRL`, `HIQL`, `QRL`, `GCIQL`, `GCIVL` |
+| Locomotion | `humanoidmaze-medium-navigate-v0` | C | Harder long-horizon control | `CRL`, `HIQL`, `QRL`, `GCIQL`, `GCIVL` |
+| Manipulation | `scene-play-v0` | C | Sequential reasoning task | `CRL`, `HIQL`, `QRL`, `GCIQL`, `GCIVL` |
+| Manipulation | `puzzle-3x3-play-v0` | C | Goal composition and combinatorics | `CRL`, `HIQL`, `QRL`, `GCIQL`, `GCIVL` |
+
+### Stretch Reproduction
+
+Add these only after Phase C runs are stable and producing comparable trends.
 
 | Category | Dataset | Why include it |
 | --- | --- | --- |
 | Locomotion | `antsoccer-medium-navigate-v0` | More difficult control plus object interaction |
-| Drawing | `powderworld-medium-play-v0` or `powderworld-hard-play-v0` | Matches the course handout and adds non-robotic generalization |
+| Powderworld | `powderworld-hard-play-v0` | Harder variant of Powderworld |
 | Pixel | one visual maze or visual manipulation dataset | Tests the image-based pipeline |
-| IQL-family extension | `GCIVL` on Tier 1 datasets | Clarifies the "Implicit Q/V Learning" family |
 
 ## Recommended Seed Policy
 
-- Smoke test: `1` seed
-- Tier 1 reproduction: `2-3` seeds first
+- Phase A: seed `0` only (fast validation)
+- Phase B: seeds `0, 1, 2` (error bars for the 3 priority datasets)
+- Phase C: seeds `0, 1, 2` for the additional 3 datasets
 - Stronger claim for final comparison: `5+` seeds if compute allows
 
 We should only chase the full official seed count after we confirm the pipeline is stable.

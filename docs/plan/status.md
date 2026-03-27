@@ -7,23 +7,36 @@ This file tracks what we have actually completed so far.
 | Item | Status | Notes |
 | --- | --- | --- |
 | Local git repo | `done` | Scaffolded on 2026-03-26 |
-| GitHub remote | `done` | `origin` set to `git@github.com:EFeng2005/ECE-567-p2.git` |
+| GitHub remote | `done` | `origin` set to `git@github.com:EFeng2005/ECE-567-p3.git` |
 | Upstream OGBench checkout | `done` | Present under `external/ogbench` |
 | Local OGBench patch automation | `done` | `scripts/bootstrap_ogbench.sh` reapplies `patches/ogbench_local.patch` after clone/pull |
 | Great Lakes SLURM template | `done` | Added under `cluster/greatlakes/slurm` |
 | Great Lakes dataset override | `done` | `main.py` now accepts `--dataset_dir` and the SLURM template defaults to scratch when available |
 | Great Lakes wandb mode override | `done` | `main.py` now accepts `--wandb_mode=online|offline|disabled` |
-| Small-matrix submission script | `done` | `scripts/small_matrix_sbatch.sh` submits the first four benchmark runs with cluster defaults |
+| Small-matrix submission script | `done` | `scripts/submit_phaseA.sh` submits the first four benchmark runs with cluster defaults |
 | Experiment tracking docs | `done` | Targets, status, replication matrix, and results template are all in the repo |
 
 ## Benchmark Run Status
 
+### Phase A: 3 datasets x 5 methods x seed 0 = 15 runs
+
 | Dataset | Method | Seeds | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `antmaze-large-navigate-v0` | `HIQL` | `0` | `queued` | Smoke test. Use `--agent.high_alpha=3.0 --agent.low_alpha=3.0 --video_episodes=0` |
-| `cube-double-play-v0` | `HIQL` | `0` | `queued` | Submit after smoke test. Use `--agent.high_alpha=3.0 --agent.low_alpha=3.0 --agent.subgoal_steps=10 --video_episodes=0` |
-| `antmaze-large-navigate-v0` | `GCIQL` | `0` | `queued` | Submit after smoke test. Use `--agent.alpha=0.3 --video_episodes=0` |
-| `cube-double-play-v0` | `GCIQL` | `0` | `queued` | Submit after smoke test. Use `--agent.alpha=1.0 --video_episodes=0` |
+| `antmaze-large-navigate-v0` | `CRL` | `0` | `queued` | Phase A. Use `--agent.alpha=0.1 --video_episodes=0` |
+| `antmaze-large-navigate-v0` | `HIQL` | `0` | `queued` | Phase A. Use `--agent.high_alpha=3.0 --agent.low_alpha=3.0 --video_episodes=0` |
+| `antmaze-large-navigate-v0` | `QRL` | `0` | `queued` | Phase A. Use `--agent.alpha=0.003 --video_episodes=0` |
+| `antmaze-large-navigate-v0` | `GCIQL` | `0` | `queued` | Phase A. Use `--agent.alpha=0.3 --video_episodes=0` |
+| `antmaze-large-navigate-v0` | `GCIVL` | `0` | `queued` | Phase A. Use `--agent.alpha=10.0 --video_episodes=0` |
+| `cube-double-play-v0` | `CRL` | `0` | `queued` | Phase A. Use `--agent.alpha=3.0 --video_episodes=0` |
+| `cube-double-play-v0` | `HIQL` | `0` | `queued` | Phase A. Use `--agent.high_alpha=3.0 --agent.low_alpha=3.0 --agent.subgoal_steps=10 --video_episodes=0` |
+| `cube-double-play-v0` | `QRL` | `0` | `queued` | Phase A. Use `--agent.alpha=0.3 --video_episodes=0` |
+| `cube-double-play-v0` | `GCIQL` | `0` | `queued` | Phase A. Use `--agent.alpha=1.0 --video_episodes=0` |
+| `cube-double-play-v0` | `GCIVL` | `0` | `queued` | Phase A. Use `--agent.alpha=10.0 --video_episodes=0` |
+| `powderworld-medium-play-v0` | `CRL` | `0` | `queued` | Phase A. Pixel/discrete. Use `--agent.actor_loss=awr --agent.alpha=3.0` |
+| `powderworld-medium-play-v0` | `HIQL` | `0` | `queued` | Phase A. Pixel/discrete. Use `--agent.high_alpha=3.0 --agent.low_actor_rep_grad=True --agent.low_alpha=3.0 --agent.subgoal_steps=10` |
+| `powderworld-medium-play-v0` | `QRL` | `0` | `queued` | Phase A. Pixel/discrete. Use `--agent.actor_loss=awr --agent.alpha=3.0` |
+| `powderworld-medium-play-v0` | `GCIQL` | `0` | `queued` | Phase A. Pixel/discrete. Use `--agent.actor_loss=awr --agent.alpha=3.0` |
+| `powderworld-medium-play-v0` | `GCIVL` | `0` | `queued` | Phase A. Pixel/discrete. Use `--agent.alpha=3.0` |
 
 ## Result Summary
 

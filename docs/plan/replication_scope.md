@@ -31,17 +31,27 @@ A good partial replication should still cover:
 - at least one task that is not trivial
 - enough seeds to show whether trends are stable
 
-That is why the recommended default in this repo is:
+That is why the recommended default in this repo starts with **3 datasets first** (Phase A), then expands:
 
-- locomotion: `antmaze-large-navigate-v0`, `humanoidmaze-medium-navigate-v0`
-- manipulation: `cube-double-play-v0`, `scene-play-v0`, `puzzle-3x3-play-v0`
-- methods: `CRL`, `HIQL`, `QRL`, `GCIQL`
+**Phase A** (priority -- 3 datasets, seed 0, 15 runs):
 
-Then, if things go well, add:
+- locomotion: `antmaze-large-navigate-v0`
+- manipulation: `cube-double-play-v0`
+- powderworld: `powderworld-medium-play-v0`
+- methods: `CRL`, `HIQL`, `QRL`, `GCIQL`, `GCIVL`
 
-- `GCIVL`
+**Phase B** (expand seeds -- same 3 datasets, seeds 0, 1, 2, 45 runs total):
+
+- Same datasets and methods as Phase A, with 3 seeds for error bars.
+
+**Phase C** (expand datasets -- 6 datasets, seeds 0, 1, 2, 90 runs total):
+
+- Add: `humanoidmaze-medium-navigate-v0`, `scene-play-v0`, `puzzle-3x3-play-v0`
+
+Then, if things go well, add stretch targets:
+
 - `antsoccer`
-- one `Powderworld` task
+- `powderworld-hard-play-v0`
 - one pixel-based task
 
 ## When Full Reproduction Might Be Worth It
@@ -57,10 +67,10 @@ Only aim for the full benchmark table if:
 
 Use a staged plan:
 
-1. One smoke-test run on a small state-based task.
-2. One method across Tier 1 tasks.
-3. All target methods across Tier 1 tasks.
-4. Increase seed count.
+1. One smoke-test run on a small state-based task (interactive session).
+2. **Phase A**: All 5 methods across 3 priority datasets, seed 0 only (15 runs).
+3. **Phase B**: Expand to seeds 0, 1, 2 for the same 3 datasets (45 runs).
+4. **Phase C**: Add 3 more datasets with seeds 0, 1, 2 (90 runs total).
 5. Add stretch tasks only if the first four steps are stable.
 
 This is the best tradeoff between scientific credibility and actually finishing the project.
