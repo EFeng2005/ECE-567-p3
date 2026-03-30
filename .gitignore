@@ -46,6 +46,13 @@ results/figures/*
 # Keep lightweight placeholders and docs
 !results/raw/.gitkeep
 !results/processed/.gitkeep
+!results/processed/by_dataset/
+!results/processed/by_dataset/**/
+!results/processed/by_dataset/**/eval.csv
+!results/processed/by_dataset/**/train.csv
+!results/processed/by_dataset/**/flags.json
+!results/processed/by_dataset/**/source.txt
+!results/summary.csv
 !results/figures/.gitkeep
 !results/README.md
 

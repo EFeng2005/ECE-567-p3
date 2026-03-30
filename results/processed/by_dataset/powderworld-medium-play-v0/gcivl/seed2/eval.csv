@@ -1,0 +1,7 @@
+evaluation/task1_squares_success,evaluation/task2_water_plant_success,evaluation/task3_sandpile_success,evaluation/task4_two_rooms_success,evaluation/task5_elements_success,evaluation/overall_success,step
+0.0,0.0,0.0,0.0,0.0,0.0,1
+0.36,0.06,0.94,0.14,0.02,0.304,100000
+0.5,0.42,0.94,0.16,0.0,0.404,200000
+0.92,0.74,1.0,0.44,0.02,0.624,300000
+1.0,0.3,1.0,0.54,0.0,0.568,400000
+1.0,0.08,1.0,0.64,0.02,0.548,500000
