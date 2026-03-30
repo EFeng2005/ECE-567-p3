@@ -24,6 +24,8 @@ outputs/
 logs/
 checkpoints/
 tmp/
+ogbench-*.out
+ogbench-train-*.out
 
 # Local data
 data/
@@ -43,4 +45,3 @@ results/figures/*
 
 # Upstream benchmark checkout
 external/ogbench/
-
