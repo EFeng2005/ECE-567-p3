@@ -57,20 +57,20 @@ These 9 datasets were chosen to enable the following comparisons from the paper:
 
 Mean overall success rate (averaged over 3 seeds):
 
-| Dataset | CRL | HIQL | QRL | GCIQL | GCIVL |
-|---------|:---:|:----:|:---:|:-----:|:-----:|
+| Dataset | GCIVL | GCIQL | QRL | CRL | HIQL |
+|---------|:-----:|:-----:|:---:|:---:|:----:|
 | **Locomotion** | | | | | |
-| antmaze-large-navigate | 0.865 | **0.889** | 0.807 | 0.327 | 0.149 |
-| antmaze-large-stitch | 0.187 | **0.677** | 0.212 | 0.111 | 0.188 |
-| antmaze-teleport-navigate | **0.539** | 0.404 | 0.327 | 0.303 | 0.391 |
-| humanoidmaze-medium-navigate | 0.576 | **0.907** | 0.193 | 0.309 | 0.251 |
+| antmaze-large-navigate | 0.149 | 0.327 | 0.807 | 0.865 | **0.889** |
+| antmaze-large-stitch | 0.188 | 0.111 | 0.212 | 0.187 | **0.677** |
+| antmaze-teleport-navigate | 0.391 | 0.303 | 0.327 | **0.539** | 0.404 |
+| humanoidmaze-medium-navigate | 0.251 | 0.309 | 0.193 | 0.576 | **0.907** |
 | **Manipulation** | | | | | |
-| cube-double-play | 0.085 | 0.067 | 0.012 | **0.359** | 0.340 |
-| scene-play | 0.183 | 0.348 | 0.048 | **0.512** | 0.408 |
-| puzzle-3x3-play | 0.036 | 0.112 | 0.007 | **0.937** | 0.048 |
+| cube-double-play | 0.340 | **0.359** | 0.012 | 0.085 | 0.067 |
+| scene-play | 0.408 | **0.512** | 0.048 | 0.183 | 0.348 |
+| puzzle-3x3-play | 0.048 | **0.937** | 0.007 | 0.036 | 0.112 |
 | **Powderworld** | | | | | |
-| powderworld-medium-play | 0.029 | 0.131 | 0.017 | 0.173 | **0.529** |
-| powderworld-hard-play | 0.000 | 0.033 | 0.000 | 0.000 | **0.048** |
+| powderworld-medium-play | **0.529** | 0.173 | 0.017 | 0.029 | 0.131 |
+| powderworld-hard-play | **0.048** | 0.000 | 0.000 | 0.000 | 0.033 |
 
 Bold = best method per dataset. Full per-seed breakdown is in `results/summary.csv`.
 
