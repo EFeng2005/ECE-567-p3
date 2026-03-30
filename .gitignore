@@ -36,6 +36,12 @@ scratch/
 results/raw/*
 results/processed/*
 results/figures/*
+!results/raw/ogbench_runs/
+!results/raw/ogbench_runs/OGBench/
+!results/raw/ogbench_runs/OGBench/**/
+!results/raw/ogbench_runs/OGBench/**/eval.csv
+!results/raw/ogbench_runs/OGBench/**/train.csv
+!results/raw/ogbench_runs/OGBench/**/flags.json
 
 # Keep lightweight placeholders and docs
 !results/raw/.gitkeep
