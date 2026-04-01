@@ -26,35 +26,20 @@ checkpoints/
 tmp/
 ogbench-*.out
 ogbench-train-*.out
+monitor.log
+monitor_nohup.out
 
 # Local data
 data/
 datasets/
 scratch/
 
-# Results generated during runs
-results/raw/*
-results/processed/*
-results/figures/*
-!results/raw/ogbench_runs/
-!results/raw/ogbench_runs/OGBench/
-!results/raw/ogbench_runs/OGBench/**/
-!results/raw/ogbench_runs/OGBench/**/eval.csv
-!results/raw/ogbench_runs/OGBench/**/train.csv
-!results/raw/ogbench_runs/OGBench/**/flags.json
+# Internal / temporary docs
+docs/
+skills.md
 
-# Keep lightweight placeholders and docs
-!results/raw/.gitkeep
-!results/processed/.gitkeep
-!results/processed/by_dataset/
-!results/processed/by_dataset/**/
-!results/processed/by_dataset/**/eval.csv
-!results/processed/by_dataset/**/train.csv
-!results/processed/by_dataset/**/flags.json
-!results/processed/by_dataset/**/source.txt
-!results/summary.csv
-!results/figures/.gitkeep
-!results/README.md
+# Upstream benchmark checkout (clone via: bash scripts/bootstrap_ogbench.sh)
+external/
 
-# Upstream benchmark checkout
-external/ogbench/
+# Claude Code config
+.claude/

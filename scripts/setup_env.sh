@@ -7,7 +7,7 @@
 #
 # Examples:
 #   bash scripts/setup_env.sh                                          # default: ./venv
-#   bash scripts/setup_env.sh /scratch/chaijy_root/chaijy2/$USER/ogbench_venv
+#   bash scripts/setup_env.sh /scratch/$USER/ogbench_venv
 
 set -euo pipefail
 
@@ -68,10 +68,9 @@ echo ""
 echo "  export VENV_PATH=\"$VENV_DIR\""
 echo "  export REPO_ROOT=\"$REPO_ROOT\""
 echo ""
-echo "If using a different SLURM account (not chaijy2):"
+echo "If using a different SLURM account:"
 echo ""
 echo "  export ACCOUNT=\"your_account\""
-echo "  export PARTITION=\"your_partition\""
 echo ""
 echo "Then run:"
 echo "  bash scripts/submit_phaseD.sh    # or whichever phase script"

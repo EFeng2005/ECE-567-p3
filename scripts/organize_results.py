@@ -16,7 +16,7 @@ import shutil
 from collections import defaultdict
 
 BASE = "results/raw/ogbench_runs/OGBench"
-OUT_DIR = "results/processed/by_dataset"
+OUT_DIR = "results"
 SUMMARY_CSV = "results/summary.csv"
 
 SKIP_DIRS = {"ogbench_runs_backup", "smoke", "v100_test"}
