@@ -38,8 +38,8 @@ scratch/
 docs/
 skills.md
 
-# Upstream benchmark checkout (clone via: bash scripts/bootstrap_ogbench.sh)
-external/
-
 # Claude Code config
 .claude/
+
+# Preserved upstream OGBench .git (renamed out of external/ogbench/)
+external/.ogbench-upstream-git/
