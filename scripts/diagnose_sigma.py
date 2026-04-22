@@ -18,7 +18,15 @@ import argparse
 import json
 import os
 import pickle
+import sys
 from pathlib import Path
+
+# Ensure the OGBench impls/ dir is on sys.path so `agents.*` and `utils.*`
+# import correctly regardless of which directory we're run from.
+_DEFAULT_IMPLS = "/mnt/c/Users/Administrator/Documents/A.Personal-F/NLP/ece567/external/ogbench_full/impls"
+_IMPLS = os.environ.get("OGBENCH_IMPLS_DIR", _DEFAULT_IMPLS)
+if _IMPLS and _IMPLS not in sys.path:
+    sys.path.insert(0, _IMPLS)
 
 import flax
 import jax
