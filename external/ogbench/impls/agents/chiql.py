@@ -32,26 +32,33 @@ class CHIQLAgent(flax.struct.PyTreeNode):
         return weight * (diff**2)
 
     def value_loss(self, batch, grad_params):
-        """Compute the N-head IVL value loss.
+        """Compute the N-head IVL value loss, per C-HIQL.md §3.2.
 
-        Same structure as HIQL but generalized to N >= 2 heads:
-          - Advantage weight uses min-across-heads for next-V (conservative bootstrap)
-            and mean-across-heads for V(s) (matches HIQL's 2-head '(v1+v2)/2').
-          - Per-head bootstrap target q_i = r + gamma * mask * next_v_i_t (stop-grad via target net).
-          - Per-head expectile loss is summed over heads (matches HIQL's value_loss1 + value_loss2).
+        Each head is trained independently with the same action-free expectile
+        loss and its own per-head TD target. We do NOT mix heads via min/mean
+        during training — that would collapse head diversity and violate the
+        "train optimistically, decide pessimistically" split (§3.4: value-
+        function training target is unmodified). Pessimism enters only at
+        inference time via sample_actions.
+
+        Per-head loss:
+          q_i     = r + gamma * mask * V_i_target(s', g)   [stop-grad via target net]
+          adv_i   = q_i - V_i_target(s, g)
+          L_i     = E[ L_tau^2( adv_i, q_i - V_i(s, g) ) ]
+          L_total = sum_i L_i
         """
-        next_vs_t = self.network.select('target_value')(batch['next_observations'], batch['value_goals'])  # (N, B)
-        next_v_t = jnp.min(next_vs_t, axis=0)                                                              # (B,)
-        q = batch['rewards'] + self.config['discount'] * batch['masks'] * next_v_t                         # (B,)
+        # Target-network predictions (shape (N, B), stop-grad).
+        vs_t = self.network.select('target_value')(batch['observations'], batch['value_goals'])
+        next_vs_t = self.network.select('target_value')(batch['next_observations'], batch['value_goals'])
 
-        vs_t = self.network.select('target_value')(batch['observations'], batch['value_goals'])            # (N, B)
-        v_t = jnp.mean(vs_t, axis=0)                                                                       # (B,)
-        adv = q - v_t                                                                                      # (B,)
+        # Per-head TD target and per-head advantage weight.
+        qs = batch['rewards'][None, :] + self.config['discount'] * batch['masks'][None, :] * next_vs_t
+        advs = qs - vs_t
 
-        qs = batch['rewards'][None, :] + self.config['discount'] * batch['masks'][None, :] * next_vs_t     # (N, B)
-        vs = self.network.select('value')(batch['observations'], batch['value_goals'], params=grad_params) # (N, B)
+        # Live predictions (the ones that receive gradients).
+        vs = self.network.select('value')(batch['observations'], batch['value_goals'], params=grad_params)
 
-        per_head_loss = self.expectile_loss(adv[None, :], qs - vs, self.config['expectile'])              # (N, B)
+        per_head_loss = self.expectile_loss(advs, qs - vs, self.config['expectile'])
         value_loss = per_head_loss.sum(axis=0).mean()
 
         return value_loss, {
