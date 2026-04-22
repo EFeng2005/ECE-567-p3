@@ -43,3 +43,18 @@ skills.md
 
 # Preserved upstream OGBench .git (renamed out of external/ogbench/)
 external/.ogbench-upstream-git/
+
+# Upstream OGBench is re-fetched via scripts/bootstrap_ogbench.sh.
+# Only our patched files are tracked; everything else is ignored.
+external/ogbench/*
+!external/ogbench/impls
+external/ogbench/impls/*
+!external/ogbench/impls/main.py
+!external/ogbench/impls/agents
+!external/ogbench/impls/utils
+external/ogbench/impls/agents/*
+!external/ogbench/impls/agents/__init__.py
+!external/ogbench/impls/agents/chiql.py
+external/ogbench/impls/utils/*
+!external/ogbench/impls/utils/env_utils.py
+!external/ogbench/impls/utils/networks.py
