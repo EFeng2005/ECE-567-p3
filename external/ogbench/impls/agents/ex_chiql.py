@@ -362,10 +362,14 @@ def get_config():
             agent_name='ex_chiql',
 
             # EX-HIQL new knobs (EXPECTILE_HIQL.md §6).
+            # Phase-3b default: tight spread around HIQL's natural τ=0.7.
+            # The wide-spread (0.1, 0.3, 0.5, 0.7, 0.9) configuration was
+            # tried in Phase-3a and diverged numerically — see
+            # PHASE3_DESIGN_A_REPORT.md.
             num_value_heads=5,
-            head_expectiles=(0.1, 0.3, 0.5, 0.7, 0.9),
-            actor_expectile_index_low=3,   # default τ=0.7 head (HIQL-equivalent)
-            actor_expectile_index_high=3,  # default τ=0.7 head → Design A; set to 2 for Design B
+            head_expectiles=(0.6, 0.65, 0.7, 0.75, 0.8),
+            actor_expectile_index_low=2,   # index of τ=0.7 head in the new tuple
+            actor_expectile_index_high=2,  # index of τ=0.7 head in the new tuple
             num_subgoal_candidates=16,
             pessimism_beta=0.5,
 

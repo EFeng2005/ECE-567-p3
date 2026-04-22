@@ -16,7 +16,7 @@ VENV="$HOME/ece567/.venv"
 OGB="$REPO/external/ogbench_full/impls"
 
 export OGBENCH_DATASET_DIR="$HOME/ece567/data"
-SAVE_DIR="$HOME/ece567/runs/ex_chiql_phase3"
+SAVE_DIR="$HOME/ece567/runs/ex_chiql_phase3b"
 LOG_DIR="$HOME/ece567/logs"
 mkdir -p "$OGBENCH_DATASET_DIR" "$SAVE_DIR" "$LOG_DIR"
 
@@ -26,14 +26,14 @@ export XLA_PYTHON_CLIENT_MEM_FRACTION=0.30
 
 cd "$OGB"
 
-LOG_FILE="$LOG_DIR/ex_chiql_seed${SEED}.log"
+LOG_FILE="$LOG_DIR/ex_chiql_phase3b_seed${SEED}.log"
 echo "Starting EX-HIQL seed=$SEED. Log: $LOG_FILE"
 
 "$VENV/bin/python" -u main.py \
   --env_name=antmaze-teleport-navigate-v0 \
   --agent=agents/ex_chiql.py \
   --seed="$SEED" \
-  --run_group=ex_chiql_phase3 \
+  --run_group=ex_chiql_phase3b \
   --save_dir="$SAVE_DIR" \
   --dataset_dir="$OGBENCH_DATASET_DIR" \
   --wandb_mode=disabled \
