@@ -96,18 +96,32 @@ Equivalently: σ is now an empirical estimator of how **wide the distribution of
 
 β_pes remains inference-only — one checkpoint serves any β ∈ {0, 0.25, 0.5, 1, 2} — preserving C-HIQL's "train optimistically, decide pessimistically" property.
 
-### 3.4 Actor training: pin to the τ=0.7 head
+### 3.4 Actor training: two independent head-indices for low and high
 
 Both `low_actor_loss` and `high_actor_loss` in `chiql.py` currently use `vs.mean(axis=0)` as the advantage proxy. With heterogeneous τ that mean no longer represents "HIQL's V"; it's a weird mixture.
 
-**Fix**: use the τ=0.7 head (index 3) for actor advantages:
+**Observation**: the two actors have different sensitivities to V's optimism.
+
+- **Low actor** computes `A_low = V(s', w) − V(s, w)` for `s, s'` one env step apart. Systematic inflation cancels in the subtraction; low actor's τ choice barely matters.
+- **High actor** computes `A_high = V(w, g) − V(s, g)` over a 25-step gap toward the ultimate goal. If `w` is near a teleporter and `s` isn't, the inflation does **not** cancel — the high actor is actively trained to prefer teleporter-adjacent waypoints. This is the upstream source of the bias.
+
+**Fix**: two independent indices, one per actor:
 
 ```python
 # was: v = vs.mean(axis=0)
-v = vs[3]   # index 3 corresponds to tau=0.7, i.e. HIQL's default V
+low_idx = self.config['actor_expectile_index_low']    # default 3 (τ=0.7)
+high_idx = self.config['actor_expectile_index_high']  # default 3 (τ=0.7)
+
+v  = vs[low_idx]    # in low_actor_loss
+nv = nvs[low_idx]   # in low_actor_loss
+
+v  = vs[high_idx]   # in high_actor_loss
+nv = nvs[high_idx]  # in high_actor_loss
 ```
 
-This keeps the policy-training dynamics **bit-identical to HIQL** for that head, while the ensemble is purely used for inference-time pessimism.
+The default `(3, 3)` both use τ=0.7, making **Design A**: policy-training dynamics **bit-identical to HIQL** everywhere, only the inference-time σ changes. This is the conservative first experiment.
+
+**Design B** (ablation; override at launch time): `actor_expectile_index_high = 2` (τ=0.5 head) while keeping low at 3. This additionally de-biases the high actor's training-time advantage, attacking the upstream bias directly. Run only if Design A passes E3 but underperforms on E1.
 
 ### 3.5 What does **not** change
 
@@ -183,7 +197,8 @@ This is a much sharper narrative than either "here's an uncertainty method that 
 | Parameter | Default | Sweep range | Justification |
 |---|---|---|---|
 | `head_expectiles` | `(0.1, 0.3, 0.5, 0.7, 0.9)` | {current default; `(0.3, 0.5, 0.7, 0.9, 0.95)`} | Symmetric-around-0.5 gives widest range; default mimics quantile-regression RL |
-| `actor_expectile_index` | `3` (τ=0.7) | — | Keep HIQL's actor-training dynamics bit-identical |
+| `actor_expectile_index_low` | `3` (τ=0.7) | — | Keep HIQL's low-actor training dynamics bit-identical |
+| `actor_expectile_index_high` | `3` (τ=0.7) | `{3, 2}` | `3` = Design A (conservative); `2` = Design B ablation (de-bias high actor's advantage) |
 | β_pes | `0.5` | `{0, 0.25, 0.5, 1, 2}` (inference sweep) | Same as C-HIQL; β is inference-only |
 | N (ensemble size) | `5` | {3, 5} | Must equal `len(head_expectiles)` |
 
@@ -228,7 +243,8 @@ All other HIQL hyperparameters inherited unchanged: γ=0.99, α_AWR=3.0 (high an
 | `τ=0.1` head learns policy-noise-aware V (not just stochastic-dynamics-aware) and its σ contribution is confounded by "random bad trajectories in the log" | High | Expected. Note in analysis; ablate with `(0.3, 0.5, 0.7, 0.9)` (no extreme low τ) and check if effect persists |
 | Low-τ heads destabilize training (very negative targets diverge) | Medium | Keep target-network τ=0.005; monitor `v_min`/`v_max` in train.csv |
 | σ signal is small even post-fix (teleport distribution not wide enough) | Medium | Check absolute σ scale in diagnostic; if < 0.1 units, pessimism still has no lever |
-| Actor advantages driven by vs[3] (a single head) are noisier than `vs.mean(axis=0)` | Low | HIQL baseline uses single V, so single-head is no noisier than HIQL's default |
+| Actor advantages driven by `vs[3]` (a single head) are noisier than `vs.mean(axis=0)` | Low | HIQL baseline uses single V, so single-head is no noisier than HIQL's default |
+| Design A fails E1 despite E3 passing: σ is meaningful but the high actor's advantage is still biased toward teleporters | Medium | Run **Design B** ablation: `actor_expectile_index_high = 2` (τ=0.5). Attacks upstream bias at training-time too |
 | Shared trunk still washes out expectile differences | Medium-low | Fallback variant: per-head trunks (EX-HIQL + independent ensembles) — 5× params |
 
 ---

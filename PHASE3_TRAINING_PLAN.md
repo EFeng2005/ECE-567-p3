@@ -62,8 +62,9 @@ def get_config():
         dict(
             agent_name='ex_chiql',
             num_value_heads=5,
-            head_expectiles=(0.1, 0.3, 0.5, 0.7, 0.9),  # NEW — per-head τ
-            actor_expectile_index=3,                     # NEW — which head feeds the actor
+            head_expectiles=(0.1, 0.3, 0.5, 0.7, 0.9),   # NEW — per-head τ
+            actor_expectile_index_low=3,                  # NEW — head for low-actor advantage (default τ=0.7)
+            actor_expectile_index_high=3,                 # NEW — head for high-actor advantage (default τ=0.7 → Design A)
             num_subgoal_candidates=16,
             pessimism_beta=0.5,
             # ... rest unchanged ...
@@ -71,7 +72,10 @@ def get_config():
     )
 ```
 
-Important: `num_value_heads` **must** equal `len(head_expectiles)`. Assert this in `create()`.
+Important: `num_value_heads` **must** equal `len(head_expectiles)`. Assert this in `create()`. Both actor indices must be in `range(num_value_heads)`.
+
+**Design A** = defaults (both indices = 3, i.e. τ=0.7). This is our first 3-seed training.
+**Design B** ablation = override `actor_expectile_index_high=2` (τ=0.5) at launch. Only run if Design A's results motivate it.
 
 ### 1b. `value_loss` — broadcast τ over heads
 
@@ -94,12 +98,20 @@ Also remove the top-level `expectile` key from the config (no longer used; keep 
 In `low_actor_loss`:
 ```python
 # was:  v = vs.mean(axis=0);  nv = nvs.mean(axis=0)
-idx = self.config['actor_expectile_index']
+idx = self.config['actor_expectile_index_low']    # default 3 (τ=0.7)
 v = vs[idx]
 nv = nvs[idx]
 ```
 
-Same change in `high_actor_loss`. No other modifications to the actor losses.
+In `high_actor_loss`:
+```python
+# was:  v = vs.mean(axis=0);  nv = nvs.mean(axis=0)
+idx = self.config['actor_expectile_index_high']   # default 3 (τ=0.7) → Design A
+v = vs[idx]
+nv = nvs[idx]
+```
+
+**Two independent indices.** Default `(3, 3)` makes training bit-identical to HIQL for both actors (Design A). Switching `high` to `2` (τ=0.5) implements Design B. No other modifications to the actor losses.
 
 ### 1d. `sample_actions` — unchanged
 
@@ -245,6 +257,44 @@ Decision gate (per Claim E1+E2+E3 in `EXPECTILE_HIQL.md §7`):
 If E1–E3 all pass, run 3 seeds on `antmaze-large-navigate-v0` (~5h training × 3 parallel) to check Claim E4 (no regression on deterministic env). Reuse `run_chiql_local.sh` with `--env_name=antmaze-large-navigate-v0 --agent=agents/ex_chiql.py` and default β=0.5.
 
 Expected: matches Phase-1 HIQL's 0.889 within 3 pts. If EX-HIQL drops deterministic-env performance substantially, the story becomes "tradeoff between stochastic and deterministic robustness" — still publishable, different framing.
+
+---
+
+## Task 9 (Conditional) — Design B ablation
+
+**Trigger**: run only if Design A passes E3 (σ correlation flips) but fails or underperforms on E1 (5-pt improvement over HIQL).
+
+**Hypothesis**: Design A fixes σ but the high-actor was still trained with τ=0.7 advantages that bias it toward teleporter-adjacent waypoints. Even with a working σ signal at inference, the sampled candidate pool is already biased. Design B attacks this upstream by using the τ=0.5 head for the high-actor's advantage during training.
+
+**Config override**:
+```bash
+--agent.actor_expectile_index_high=2   # was 3 in Design A
+```
+Everything else identical: same 3 seeds, same env, same β sweep, same diagnostic.
+
+**Expected outcomes**:
+- Design B > HIQL by ≥ 5 pts → "per-head τ + high-actor de-biasing" is the winning combination. Paper has a two-mechanism story.
+- Design B ≈ Design A → fixing σ is enough; high-actor bias was already dominated by downstream pessimism. Simpler story.
+- Design B < Design A → de-biasing the high actor costs us policy quality elsewhere (e.g., on deterministic parts of the maze). Keep Design A.
+
+**Decision flowchart**:
+
+```
+Design A (Task 4) → Diagnostic (Task 6)
+                 │
+                 ├── σ correlation flips? ── NO ──→ Pivot (F2 / F4 in EXPECTILE_HIQL.md §9)
+                 │
+                 └── YES
+                     │
+                     ├── E1 improvement ≥ 5 pts? ── YES ──→ Ship Design A. Task 9 not needed.
+                     │
+                     └── NO / marginal
+                         │
+                         └──→ Run Task 9 (Design B ablation)
+                              │
+                              ├── Design B improvement ≥ 5 pts ──→ Ship Design B.
+                              └── Still flat ──→ Pivot.
+```
 
 ---
 
