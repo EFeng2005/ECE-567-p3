@@ -14,11 +14,22 @@ from utils.networks import MLP, GCActor, GCDiscreteActor, GCValue, Identity, Len
 class CHIQLAgent(flax.struct.PyTreeNode):
     """Conservative Hierarchical implicit Q-learning (C-HIQL) agent.
 
-    Differs from HIQL in: (1) value ensemble has N heads instead of 2;
-    (2) inference draws K candidate subgoal representations from the high
-    actor and selects argmax of mu(s, g_sub) - beta * sigma(s, g_sub) over the
-    N-head ensemble. Training losses, target update, and dataset pipeline are
-    unchanged from HIQL.
+    Minimal-surgery extension of HIQL (Park et al., 2023) per C-HIQL.md §3 and
+    HIQL_EXPLAINER.md §9. Two and only two changes relative to HIQL:
+
+      (1) Training: the high-level value network has N=5 independent heads
+          instead of HIQL's 2. Each head is trained with the SAME action-free
+          expectile loss and its OWN per-head TD target (§3.2). No pessimism
+          is injected into any training loss — the training target stays
+          optimistic (§3.4, §9.3 "Every loss function does not change").
+
+      (2) Inference (sample_actions): draw K=16 candidate subgoal reps from
+          pi_high, score each by mu - beta_pes * sigma over the N heads,
+          argmax, and feed to pi_low (§9.2). Beta_pes is inference-only, so
+          one checkpoint serves any value of beta_pes (§9.2 bullet 3).
+
+    Everything else is HIQL verbatim: goal representation phi, pi_low/pi_high
+    architectures, dataset pipeline, hyperparameters.
     """
 
     rng: Any
@@ -70,7 +81,13 @@ class CHIQLAgent(flax.struct.PyTreeNode):
         }
 
     def low_actor_loss(self, batch, grad_params):
-        """Compute the low-level actor loss."""
+        """Compute the low-level actor loss.
+
+        Identical to HIQL — the spec's §3.4 / §9.3 mark low-level training as
+        unmodified. For N>2 heads we reduce with vs.mean(axis=0), which is the
+        natural generalization of HIQL's `(v1 + v2) / 2`. No pessimism here:
+        beta_pes is inference-only (§9.2).
+        """
         vs = self.network.select('value')(batch['observations'], batch['low_actor_goals'])        # (N, B)
         nvs = self.network.select('value')(batch['next_observations'], batch['low_actor_goals'])  # (N, B)
         v = vs.mean(axis=0)
@@ -109,7 +126,14 @@ class CHIQLAgent(flax.struct.PyTreeNode):
         return actor_loss, actor_info
 
     def high_actor_loss(self, batch, grad_params):
-        """Compute the high-level actor loss."""
+        """Compute the high-level actor loss.
+
+        Identical to HIQL — the high-level AWR advantage uses the ensemble
+        mean, NOT V_pes. Spec §3.4 / §9.3 are explicit that every loss
+        function is unchanged and pessimism is inference-only. Training
+        pi_high with V_pes would make beta_pes a training-time hyper and
+        break the "one checkpoint serves all beta_pes" property (§9.2).
+        """
         vs = self.network.select('value')(batch['observations'], batch['high_actor_goals'])          # (N, B)
         nvs = self.network.select('value')(batch['high_actor_targets'], batch['high_actor_goals'])   # (N, B)
         v = vs.mean(axis=0)
@@ -185,40 +209,48 @@ class CHIQLAgent(flax.struct.PyTreeNode):
         seed=None,
         temperature=1.0,
     ):
-        """Sample actions via ensemble-pessimistic subgoal selection.
+        """K-sample pessimistic subgoal selection (HIQL_EXPLAINER.md §9.2).
 
-        Procedure:
-          1. Draw K candidate subgoal representations from the high-level actor.
-          2. Score each candidate with the N-head value ensemble:
-             score_k = mu(s, g_k) - beta * sigma(s, g_k), where mu, sigma are
-             mean and std across the N heads.
-          3. Select argmax_k score_k.
-          4. Feed the winning representation to the low-level actor.
+        Implements, verbatim:
 
-        Shapes assume a single (obs, goal) input, as produced by
-        utils.evaluation.evaluate() at each env step.
+            phi_candidates = [pi_high(s, g).sample() for _ in range(K)]
+            for phi_k in phi_candidates:
+                V_all = [V_head_i(s, phi_k) for i in 1..N]      # N scalars
+                score_k = mean(V_all) - beta_pes * std(V_all)
+            phi_sub = phi_candidates[argmax(score_k)]
+            a = pi_low(s, phi_sub).sample()
+
+        Shape assumption: single (obs, goal) per call, as produced by
+        utils.evaluation.evaluate() at each env step. `vs_all` is (K, N).
+        beta_pes enters only here, so one trained checkpoint can be evaluated
+        at any beta_pes (§9.2 bullet 3).
         """
         high_seed, low_seed = jax.random.split(seed)
 
         K = self.config['num_subgoal_candidates']
         beta = self.config['pessimism_beta']
 
+        # Step 1: draw K candidate subgoal reps from pi_high. Length-normalize
+        # onto the 10-sphere to match phi's output geometry.
         high_dist = self.network.select('high_actor')(observations, goals, temperature=temperature)
         cand_seeds = jax.random.split(high_seed, K)
         goal_reps = jax.vmap(lambda s: high_dist.sample(seed=s))(cand_seeds)  # (K, rep_dim)
         goal_reps = goal_reps / jnp.linalg.norm(goal_reps, axis=-1, keepdims=True) * jnp.sqrt(goal_reps.shape[-1])
 
+        # Step 2: score each candidate by mu - beta * sigma over the N heads.
+        # goal_encoded=True tells GCValue that `gr` is already the 10-sphere
+        # rep so it bypasses the goal_rep encoder (matches how pi_low consumes it).
         def score_one(gr):
-            # Pass goal_encoded=True so the value encoder treats `gr` as an
-            # already-normalized rep (matches how the low-level actor consumes it).
             return self.network.select('value')(observations, gr, goal_encoded=True)
 
         vs_all = jax.vmap(score_one)(goal_reps)  # (K, N)
         mu = vs_all.mean(axis=-1)                # (K,)
         sig = vs_all.std(axis=-1)                # (K,)
         scores = mu - beta * sig                 # (K,)
+
+        # Step 3: argmax and feed the winner to pi_low.
         best_idx = jnp.argmax(scores)
-        selected_goal_rep = goal_reps[best_idx]  # (rep_dim,)
+        selected_goal_rep = goal_reps[best_idx]
 
         low_dist = self.network.select('low_actor')(
             observations, selected_goal_rep, goal_encoded=True, temperature=temperature
@@ -361,9 +393,10 @@ def get_config():
         dict(
             # Agent hyperparameters.
             agent_name='chiql',  # Agent name.
-            num_value_heads=5,  # N: number of value ensemble heads.
-            num_subgoal_candidates=16,  # K: number of candidate subgoals drawn from pi_high at inference time.
-            pessimism_beta=0.5,  # beta: pessimism coefficient for subgoal scoring (mu - beta * sigma). Inference-only.
+            # C-HIQL: three and only three new knobs vs HIQL (HIQL_EXPLAINER §9.3).
+            num_value_heads=5,  # N: ensemble size on the value network. §6 default.
+            num_subgoal_candidates=16,  # K: candidates drawn from pi_high at inference (§9.2).
+            pessimism_beta=0.5,  # beta_pes: inference-only coefficient in mu - beta * sigma (§9.2).
             lr=3e-4,  # Learning rate.
             batch_size=1024,  # Batch size.
             actor_hidden_dims=(512, 512, 512),  # Actor network hidden dimensions.
