@@ -15,13 +15,14 @@ its spread (σ > 0). σ is now a structural estimator of local stochasticity
 rather than an epiphenomenon of initialisation.
 
 What does NOT change vs C-HIQL (spec: EXPECTILE_HIQL.md §3.5):
-  - Architecture: same GCValue(ensemble=True, num_ensemble=5). NOTE: despite
-    earlier docs describing this as "shared trunk + independent last layer",
-    GCValue uses utils.networks.ensemblize which wraps the entire MLP in
-    nn.vmap with variable_axes={'params': 0}, split_rngs={'params': True}.
-    Each of the 5 heads is therefore a FULL INDEPENDENT MLP (its own trunk
-    and output weights, independently initialized). A true shared-trunk
-    variant lives on the `shared-trunk-5head` branch.
+  - Architecture: same GCValue(ensemble=True, num_ensemble=5) = 5 completely
+    independent MLPs. GCValue uses utils.networks.ensemblize, which wraps
+    the whole MLP in nn.vmap with variable_axes={'params': 0} and
+    split_rngs={'params': True}. Every weight has leading axis 5; each
+    replica has its own 3×512 trunk, its own Dense(1) output, and its own
+    independent random init. Nothing is shared across the 5 heads. A
+    shared-trunk architectural ablation (one trunk + 5 Dense(1) heads)
+    lives on the `shared-trunk-5head` branch.
   - Inference rule: μ − β·σ scoring across heads, same as C-HIQL
     (`sample_actions` is bit-identical to `chiql.py`).
   - β_pes is inference-only — one trained checkpoint serves any β.

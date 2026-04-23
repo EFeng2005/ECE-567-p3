@@ -1,6 +1,6 @@
 # EX-HIQL Phase-3b Report: Tight Expectile Spread + σ-Based Early Stopping
 
-> **ERRATUM (2026-04-23)**: This report uses the phrases "shared-trunk numerical explosion", "shared-trunk gradient conflict", and "σ-creep is structural to shared-trunk ensembles". **All three are incorrect.** The EX-HIQL value net is actually 5 fully independent MLPs (see [PHASE3B_IMPROVEMENT_PLAN.md §1.1](PHASE3B_IMPROVEMENT_PLAN.md) for the full correction). σ-creep in this run came from 5 independent expectile fixed-points diverging as V learns longer horizons — not from trunks fighting each other. Numerical results (σ trajectory, eval scores, grad norms) are unchanged; only the mechanism narrative is corrected. A `shared-trunk-5head` branch has been opened to actually test the shared-trunk architecture as an ablation.
+> **Architecture note**: this report describes EX-HIQL's value network as **5 completely independent MLPs** — the code does not implement a shared-trunk ensemble. `GCValue(ensemble=True)` uses `nn.vmap` with independent per-head RNG keys ([utils/networks.py:15-25](external/ogbench/impls/utils/networks.py#L15-L25)), so every weight in the value net has a leading axis of 5 and each replica is independently initialized. An earlier draft of this report attributed σ-creep to "shared-trunk gradient conflict"; that phrasing was wrong and has been rewritten. Numerical results (σ trajectory, eval scores, grad norms) are unchanged.
 
 **Commit**: `12d20e3` on branch `expectile-heads` (renamed to `indep-trunk-5head`).
 **Env**: `antmaze-teleport-navigate-v0`, 3 seeds × 1M steps.
@@ -11,7 +11,7 @@
 
 ## 1. Executive summary
 
-Phase-3b tested whether tightening the head-expectile spread (from Phase-3a's wide `(0.1, 0.3, 0.5, 0.7, 0.9)` to a narrow `(0.6, 0.65, 0.7, 0.75, 0.8)`) eliminates the shared-trunk numerical explosion while preserving a meaningful ensemble-disagreement signal.
+Phase-3b tested whether tightening the head-expectile spread (from Phase-3a's wide `(0.1, 0.3, 0.5, 0.7, 0.9)` to a narrow `(0.6, 0.65, 0.7, 0.75, 0.8)`) eliminates the per-head numerical explosion (heads 1 and 5 running away via target-network EMA feedback — see `PHASE3_DESIGN_A_REPORT.md §4.2`) while preserving a meaningful ensemble-disagreement signal.
 
 **Two findings:**
 
@@ -142,7 +142,7 @@ Seed 0 was the underperformer at step 400k — its peak was earlier (step 100k a
 
 ### 5.1 What worked
 
-- The **tight-spread hypothesis** from `PHASE3_DESIGN_A_REPORT.md` held up: the wide-spread's shared-trunk gradient conflict is essentially absent with `(0.6..0.8)`. Training stays in HIQL's own numerical regime.
+- The **tight-spread hypothesis** from `PHASE3_DESIGN_A_REPORT.md` held up: the wide-spread's per-head runaway feedback loop (τ=0.1 and τ=0.9 each destabilizing their own independent MLP via target-network EMA) is essentially absent with `(0.6..0.8)`. The 5 MLPs now all operate in a moderate-τ regime where no head's asymmetric weights drive it to an extreme fixed point. Training stays in HIQL's own numerical regime.
 - There is a **real signal** in the ensemble disagreement at mid-training — seeds 1/2 beat HIQL by 3-7 pts at their step-400k peaks. That's the method contributing something above and beyond HIQL.
 
 ### 5.2 What didn't
@@ -186,7 +186,7 @@ Primary: **Phase-3c = Phase-3b + `optax.clip_by_global_norm(10.0)` + `save_inter
 
 Expected outcomes:
 - **If clipping works**: σ stays near its step-400k value throughout training. Phase-3b's peak should persist through step 1M, making the step-1M comparison favorable without needing early-stopping justification.
-- **If it doesn't**: we know σ-creep is structural to shared-trunk ensembles, and the next step is per-head trunks (`EXPECTILE_HIQL.md §9`).
+- **If it doesn't**: σ-creep is intrinsic to the expectile-ensemble method on 5 independent MLPs, and the next step is the shared-trunk ablation (see `PHASE3B_IMPROVEMENT_PLAN.md §3 Option 3`) — coupling all 5 heads through a shared trunk would constrain how far the per-head fixed points can drift apart.
 
 Secondary: β-sweep on the Phase-3b step-1M checkpoint (which we have). Will quantify how much σ is hurting: if β=0 > β=0.5 at step 1M, the mechanism was actively degrading performance in the last 600k steps, confirming the σ-creep theory.
 
@@ -204,6 +204,6 @@ Secondary: β-sweep on the Phase-3b step-1M checkpoint (which we have). Will qua
 
 ## 9. Summary
 
-Phase-3b **validates the mechanism-fix direction** (tight τ spread stops the wide-spread explosion) and **produces a publishable-quality result under principled early stopping** (σ<10 threshold, step 400k peak, +3.5 pt over HIQL-final, directionally consistent across seeds 1/2). It also **exposes a secondary mechanism issue** (σ creep under continued shared-trunk training) that the next phase targets with gradient clipping and intermediate checkpointing.
+Phase-3b **validates the mechanism-fix direction** (tight τ spread stops the wide-spread explosion) and **produces a publishable-quality result under principled early stopping** (σ<10 threshold, step 400k peak, +3.5 pt over HIQL-final, directionally consistent across seeds 1/2). It also **exposes a secondary mechanism issue** (σ creep under continued training — the 5 independent expectile fixed-points drifting apart over time as each of the 5 MLPs learns a wider dynamic range) that the next phase targets with intermediate checkpointing and with the two parallel ablations: L2 head regularization on `phase3c-l2reg`, and the shared-trunk architecture on `shared-trunk-5head`.
 
 Under the strict step-1M convention, Phase-3b is probably at HIQL parity — which is still a win against the Phase-3a exploded-training baseline, and an improvement over Phase-2 C-HIQL's 0.384. The gap between "best with σ healthy" and "final" is the exact thing Phase-3c is designed to close.

@@ -311,7 +311,7 @@ Design A (Task 4) → Diagnostic (Task 6)
 | Fallback | Description | When to deploy |
 |---|---|---|
 | F1 | `head_expectiles=(0.3, 0.5, 0.7, 0.9, 0.95)` (no τ=0.1) | If Task 7 shows E1 partial positive but low-τ head is noisy or hurts |
-| F2 | Per-head independent trunks (no shared trunk) | If Task 6 σ correlation is still negative — need real ensemble diversity |
+| F2 | Shared-trunk architectural ablation on `shared-trunk-5head` branch (the current setup is already 5 fully independent MLPs — this flips the direction of the ablation) | If Task 6 σ correlation is still off — test whether coupling the 5 heads through a shared trunk bounds how far they drift apart |
 | F3 | Swap Option B → Option A (pick `vs[0]`, the τ=0.1 head, directly as score) | If β sweep is flat but low-τ head gives good direct-pessimism scores |
 | F4 | Switch to CRL-based subgoal scoring (Variant C in `C-HIQL.md §11`) | If the whole ensemble-pessimism family doesn't work on this env |
 

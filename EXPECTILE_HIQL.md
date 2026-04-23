@@ -1,6 +1,6 @@
 # Expectile-Heads HIQL (EX-HIQL): Distributional Pessimism for Offline Hierarchical GCRL
 
-> **ERRATUM (2026-04-23)**: Multiple passages in this doc refer to a "shared trunk" in C-HIQL / EX-HIQL (see §3.1, §9, §12). **That architectural claim is incorrect.** `GCValue(ensemble=True)` actually produces 5 fully independent MLPs via `nn.vmap` with `split_rngs={'params': True}` (see [utils/networks.py:15-25](external/ogbench/impls/utils/networks.py#L15-L25)). The σ-from-random-init anti-correlation finding (per-state corr ≈ −0.44) is unchanged and still motivates EX-HIQL. The mechanism chain in §12 (wide-τ explosion attributed to shared-trunk conflict) is rewritten correctly in [PHASE3B_IMPROVEMENT_PLAN.md §1.1](PHASE3B_IMPROVEMENT_PLAN.md). A `shared-trunk-5head` branch has been opened to test the truly-shared-trunk variant.
+> **Architecture note**: EX-HIQL's value network is **5 completely independent MLPs** — same architecture as C-HIQL. `GCValue(ensemble=True, num_ensemble=5)` uses `nn.vmap` with `variable_axes={'params': 0}, split_rngs={'params': True}` (see [utils/networks.py:15-25](external/ogbench/impls/utils/networks.py#L15-L25)), producing one complete 3×512 MLP-with-LayerNorm per expectile, each independently initialized. Nothing is shared across the 5 heads. Earlier drafts of this doc called the same architecture "shared trunk + 5 independent heads"; that phrasing was incorrect and has been rewritten throughout.
 
 > **Idea spec** — parallel in style to `C-HIQL.md`. Written after Phase-2 C-HIQL underperformed on `antmaze-teleport-navigate-v0` and the σ diagnostic (`scripts/diagnose_sigma.py`) found that the random-init ensemble's disagreement is **anti-correlated** with μ across candidate subgoals (per-state corr ≈ −0.44). The mechanism assumption from [C-HIQL.md §4.1](C-HIQL.md) — "σ is largest where V is most overestimated" — was contradicted by the data.
 >
@@ -57,7 +57,7 @@ At a deterministic state, the Bellman target distribution is a point → **σ sh
 
 ### 3.1 Architectural change: none
 
-Same 5-head shared-trunk value network as C-HIQL (`GCValue(ensemble=True, num_ensemble=5)`). No new parameters, no new modules. Just different supervision.
+Same value network as C-HIQL — **5 completely independent MLPs** via `GCValue(ensemble=True, num_ensemble=5)`. No new parameters, no new modules. Just different supervision.
 
 ### 3.2 Training: per-head expectiles
 
@@ -133,7 +133,7 @@ The default `(3, 3)` both use τ=0.7, making **Design A**: policy-training dynam
 | High-level policy π_high training loss | ❌ (uses V_4 = τ=0.7 head) |
 | Subgoal candidate generation (K=16 samples) | ❌ |
 | Goal representation φ(g) training | ❌ |
-| Architecture (still 5 heads + shared trunk) | ❌ |
+| Architecture (still 5 completely independent MLPs) | ❌ |
 | Dataset pipeline (HGCDataset, sampling) | ❌ |
 | Target-network update rule | ❌ |
 | All HIQL hyperparameters (γ, α_AWR, k, τ_{target_net}) | ❌ |
@@ -163,9 +163,9 @@ After training, σ(s, g_sub) is approximately a statistic of the return-to-go di
 
 ### 4.3 Head diversity is strong, structural, and cheap
 
-Phase-2 C-HIQL's diversity source was random initialisation of the last layer — the weakest possible diversity. With shared trunk and limited output dimensionality, random init can be completely washed out during training. The diagnostic showed this happened.
+Phase-2 C-HIQL's diversity source was random initialization of 5 independent MLPs trained with **the same** τ=0.7 loss. With identical loss objectives, 5 networks all converge toward approximately the same value function — whatever residual disagreement remains is driven by init noise propagated through training. The Phase-2 diagnostic showed this residual was anti-correlated with μ (probably because deep-net init-noise magnifies along the directions of largest feature activation, which correlate with |μ|).
 
-Per-head τ is a **loss-level** diversity source. Two heads with different τ provably converge to different answers even with identical initialization, because their loss minima are in different places. It's the strongest form of diversity that keeps the ensemble "in the same family of estimators."
+Per-head τ is a **loss-level** diversity source. Two MLPs with different τ *provably* converge to different answers — even with identical architecture and identical initialization — because their loss minima are in different places. Each head's fixed point is a well-defined statistic of the target distribution (the τ-expectile). This is the strongest form of diversity that keeps the ensemble "in the same family of estimators."
 
 ---
 
@@ -186,7 +186,7 @@ EX-HIQL is presented as the direct, principled fix to a concrete failure mode di
 1. HIQL overestimates on stochastic envs. [Known.]
 2. C-HIQL (ensemble random init + μ − β·σ) was expected to fix it.
 3. Empirically C-HIQL does not help: σ is anti-correlated with μ at the candidate level.
-4. Why: shared-trunk last-layer variance tracks feature magnitude, not stochasticity.
+4. Why: 5 independent MLPs trained on the *same* expectile loss converge to nearly the same function; whatever residual disagreement remains tracks feature magnitude, not stochasticity.
 5. Fix: train heads with different τ so σ **provably** tracks bootstrap-target spread.
 6. Empirically EX-HIQL recovers the performance gap. [To verify.]
 
@@ -198,7 +198,7 @@ This is a much sharper narrative than either "here's an uncertainty method that 
 
 | Parameter | Current default | Recommended after Phase-3 obs | Justification |
 |---|---|---|---|
-| `head_expectiles` | `(0.1, 0.3, 0.5, 0.7, 0.9)` ⚠ | **`(0.5, 0.6, 0.7, 0.8, 0.9)` or `(0.6, 0.65, 0.7, 0.75, 0.8)`** | Original wide spread caused training divergence (see §12). Tighter spread keeps σ meaningful without blowing up the shared trunk. |
+| `head_expectiles` | `(0.1, 0.3, 0.5, 0.7, 0.9)` ⚠ | **`(0.5, 0.6, 0.7, 0.8, 0.9)` or `(0.6, 0.65, 0.7, 0.75, 0.8)`** | Original wide spread caused training divergence (see §12). Tighter spread keeps each independent MLP's target-network feedback loop away from the runaway region, so σ stays meaningful without any head exploding. |
 | `actor_expectile_index_low` | `3` (τ=0.7) | same | Keep HIQL's low-actor training dynamics bit-identical |
 | `actor_expectile_index_high` | `3` (τ=0.7) | `{3, 2}` | `3` = Design A (conservative); `2` = Design B ablation (de-bias high actor's advantage) |
 | β_pes | `0.5` | `{0, 0.25, 0.5, 1, 2}` (inference sweep) | Same as C-HIQL; β is inference-only |
@@ -244,11 +244,11 @@ All other HIQL hyperparameters inherited unchanged: γ=0.99, α_AWR=3.0 (high an
 | Risk | Likelihood | Mitigation |
 |---|---|---|
 | `τ=0.1` head learns policy-noise-aware V (not just stochastic-dynamics-aware) and its σ contribution is confounded by "random bad trajectories in the log" | High | Expected. Ablate with a tighter spread that omits τ=0.1 |
-| **Wide τ spread destabilizes shared-trunk training** — τ=0.1 and τ=0.9 pull the trunk in opposite directions; V values escape physical range (see §12) | **CONFIRMED (Phase 3, 2026-04-22)** | Primary: narrow `head_expectiles` to e.g. `(0.5, 0.6, 0.7, 0.8, 0.9)`. Secondary: add `optax.clip_by_global_norm(10.0)`. Tertiary: per-head trunks (5× params). |
+| **Wide τ spread destabilizes per-head training** — heads 1 and 5 each diverge independently via target-network EMA feedback; V values escape physical range (see §12). Note: the failure is *per-MLP*, not cross-MLP, because the 5 heads share no parameters. | **CONFIRMED (Phase 3, 2026-04-22)** | Primary: narrow `head_expectiles` to e.g. `(0.5, 0.6, 0.7, 0.8, 0.9)`. Secondary: add `optax.clip_by_global_norm(10.0)`. Tertiary: shared-trunk ablation (`shared-trunk-5head` branch) or L2 head-divergence regularizer (`phase3c-l2reg` branch). |
 | σ signal is small even post-fix (teleport distribution not wide enough) | Medium | Check absolute σ scale in diagnostic; if < 0.1 units, pessimism still has no lever |
 | Actor advantages driven by `vs[3]` (a single head) are noisier than `vs.mean(axis=0)` | Low | HIQL baseline uses single V, so single-head is no noisier than HIQL's default |
 | Design A fails E1 despite E3 passing: σ is meaningful but the high actor's advantage is still biased toward teleporters | Medium | Run **Design B** ablation: `actor_expectile_index_high = 2` (τ=0.5). Attacks upstream bias at training-time too |
-| Shared trunk still washes out expectile differences | Low (with tightened spread); High (with wide spread, see §12) | Fallback variant: per-head trunks (EX-HIQL + independent ensembles) — 5× params |
+| 5 independent MLPs all converge to nearly-identical expectile fixed points (small σ) | Low (with tightened spread) | Ablation: shared-trunk variant on `shared-trunk-5head` branch as an architectural comparison |
 
 ---
 
@@ -267,7 +267,7 @@ All other HIQL hyperparameters inherited unchanged: γ=0.99, α_AWR=3.0 (high an
 
 ## 11. 60-Second Pitch
 
-> HIQL overestimates V on stochastic environments and its hierarchical planner amplifies the bias. C-HIQL's proposed fix — 5 randomly initialised value heads with pessimistic scoring — empirically failed because shared-trunk last-layer variance tracks feature magnitude, not stochasticity. We replace random-init diversity with **per-head expectile diversity** (τ_i ∈ {0.1, 0.3, 0.5, 0.7, 0.9}). Each head converges to a different expectile of the Bellman-target distribution, so the 5-head spread σ structurally measures local stochasticity: zero at deterministic states, proportional to spread at stochastic ones. The actor is pinned to the τ=0.7 head so HIQL's training dynamics are preserved exactly. Only one line of the value loss changes. We expect σ to become positively correlated (or uncorrelated) with μ at the candidate level (reversing C-HIQL's −0.44), and β>0 scoring to beat HIQL on teleport while leaving deterministic-env performance unchanged. Total additional budget: 6 training runs (~30 GPU-h on a 5090).
+> HIQL overestimates V on stochastic environments and its hierarchical planner amplifies the bias. C-HIQL's proposed fix — 5 independently-initialized value heads trained on the same expectile loss with pessimistic scoring — empirically failed because 5 identical-loss MLPs converge to nearly the same function; whatever residual disagreement survives tracks feature magnitude, not stochasticity. We replace random-init diversity with **per-head expectile diversity** (τ_i ∈ {0.1, 0.3, 0.5, 0.7, 0.9}). Each head converges to a *provably different* expectile of the Bellman-target distribution, so the 5-head spread σ structurally measures local stochasticity: zero at deterministic states, proportional to spread at stochastic ones. The actor is pinned to the τ=0.7 head so HIQL's training dynamics are preserved exactly. Only one line of the value loss changes. We expect σ to become positively correlated (or uncorrelated) with μ at the candidate level (reversing C-HIQL's −0.44), and β>0 scoring to beat HIQL on teleport while leaving deterministic-env performance unchanged. Total additional budget: 6 training runs (~30 GPU-h on a 5090).
 
 ---
 
@@ -317,35 +317,38 @@ Physical bounds for this env:
 - Episode length ≤ ~500 steps; reward = −1 per step; so realistic V ∈ roughly `[-500, 0]`.
 - Observed at step 790k: `v_max = +538` (positive — "reach goal in −538 steps"); `v_min = −2855` (5× worse than any possible trajectory).
 
-Both bounds were violated. The τ=0.9 head escaped toward `+∞`; the τ=0.1 head toward `−∞`. Adam absorbed the gradients (no NaN), but the V function became non-physical.
+Both bounds were violated. The τ=0.9 MLP escaped toward `+∞`; the τ=0.1 MLP toward `−∞`. Adam absorbed the gradients (no NaN), but the V function became non-physical.
 
 ### 12.4 Why this happens
 
-The 5 expectile heads share a single trunk MLP. The shared-feature `h ∈ R^{512}` gets gradient updates from all 5 per-head losses summed. With wide τ spread, those losses are pulling in opposite directions:
+The 5 expectile heads are 5 completely independent MLPs (no shared parameters). The failure is therefore **per-MLP**, not cross-MLP. Each extreme-τ head destabilizes on its own via a target-network EMA feedback loop:
 
-- Head at τ=0.9 wants `h` to encode features that, when hit by its last-layer weights, produce high V. It prefers trunk features that amplify optimistic outcomes.
-- Head at τ=0.1 wants exactly the opposite.
+- At τ=0.9 the asymmetric expectile weights put 9× weight on samples where the current prediction is below the bootstrap target `q = r + γ · V_target(s')`. This pulls `V_9` upward.
+- Since `V_9_target` is an EMA of `V_9` itself (τ=0.005), as `V_9` grows, `V_9_target` catches up, which makes `q` grow, which the expectile loss chases even higher. Positive feedback.
+- Symmetric story at τ=0.1 with sign flipped.
 
-There is no `h` that satisfies both. The shared trunk settles into an unstable equilibrium where feature magnitudes grow (so individual last-layer weights can project to very different values), at which point the heads both track the *magnitude* of `h` rather than its direction. Grad norms explode; V values escape bounds.
+The middle heads (τ=0.3, 0.5, 0.7) have weaker asymmetry — their expectile weights are closer to symmetric — so they don't enter the runaway regime. They stay near a reasonable fixed point throughout training.
 
-The τ=0.7 head used by the actor isn't directly destabilized by its own loss (τ=0.7 is close to HIQL's natural regime), but it *is* reading from the same damaged trunk, so its predictions are worse than plain-HIQL's would be. This is why the success rate plateaus around 0.37–0.41 rather than collapsing — the actor still gets a usable (if degraded) signal from head 3.
+The τ=0.7 MLP used by the actor is **completely unaffected** by the divergence of heads 1 and 5, because nothing is shared. Its own training is exactly equivalent to a standalone HIQL V-function. That's why the success rate sits in the 0.37–0.41 band: the actor is essentially running plain HIQL through head 3, while the pessimism mechanism is broken but irrelevant.
 
 ### 12.5 Mechanism-level diagnosis
 
-The inference-time σ in this run is **enormous everywhere** (~1000), not localised. At `β_pes = 0.5`, scoring `μ − 0.5 · σ` is dominated by σ, not μ. The pessimism term becomes noise relative to its intended role. This likely explains why no clean improvement emerged: the designed mechanism (use σ to penalise candidates near teleporters) was overridden by σ's runaway magnitude.
+The inference-time σ in this run is **enormous everywhere** (~1000), not localised. At `β_pes = 0.5`, scoring `μ − 0.5 · σ` is dominated by σ, not μ. The pessimism term becomes noise relative to its intended role. This explains why no clean improvement emerged: two of the five independent MLPs (τ=0.1, τ=0.9) have each diverged via their own feedback loops, so at every candidate state the mean μ and the spread σ are both dominated by those two runaway heads. The designed mechanism (use σ to penalize candidates near teleporters) was overridden by σ's per-head runaway magnitude.
 
-E3 (the structural-correlation check via `diagnose_sigma.py`) has not yet been run on these checkpoints. It will show σ is uniformly large rather than correlated with any state property, which confirms the mechanism-level failure.
+The `diagnose_sigma.py` diagnostic (run after this report was first drafted — see `PHASE3_DESIGN_A_REPORT.md §6.1`) confirmed this: `per_state_mu_sig_corr_mean ≈ +0.99` across all seeds. σ is not localized to any state property; it's co-scaling with μ because both are dictated by the same two runaway heads.
 
 ### 12.6 Implications for the next run
 
-1. **Primary fix — tighten `head_expectiles`** to something like `(0.5, 0.6, 0.7, 0.8, 0.9)` or `(0.6, 0.65, 0.7, 0.75, 0.8)`. This preserves "different fixed points ⇒ structural σ" while staying close enough to HIQL's regime that the shared trunk can serve all heads without blowing up.
+1. **Primary fix — tighten `head_expectiles`** to something like `(0.5, 0.6, 0.7, 0.8, 0.9)` or `(0.6, 0.65, 0.7, 0.75, 0.8)`. This preserves "different fixed points ⇒ structural σ" while keeping every individual τ away from the runaway regime where the asymmetric weights drive an independent MLP to an extreme fixed point.
 2. **Secondary fix — add global gradient clipping** (e.g. `optax.clip_by_global_norm(10.0)` in the optimizer pipeline). Cheap safety net even if tighter spread is used.
-3. **Tertiary fix — per-head trunks** (no sharing). Removes the "one trunk serves 5 contradictory losses" problem at the cost of 5× parameters. Strongest-but-most-expensive option.
+3. **Tertiary fix — architectural ablations**. Two independent options, pursued in parallel on two branches:
+   - `phase3c-l2reg`: add an L2 penalty pulling the 5 heads' parameters toward their ensemble mean. Per-parameter restoring force against divergence.
+   - `shared-trunk-5head`: one shared trunk + 5 independent `Dense(1)` output heads. Couples all 5 heads through a single feature representation, bounding how far they can disagree.
 
-The follow-up experiment should be all three together as the new default: tight `head_expectiles` + clipping + (optionally) per-head trunks if the tight-spread version still shows growth symptoms.
+The Phase-3b follow-up used (1) tight spread — three seeds × 1M steps on `(0.6..0.8)` stayed numerically clean (grad/norm flat 280-650) but showed a slower σ-creep during training. See `PHASE3B_REPORT.md`. Ablations (3) target that secondary creep.
 
 ### 12.7 What this run is still worth
 
-- Final 1M checkpoints will be saved (barring further divergence). They give us the definitive β-sweep row for this configuration.
-- The checkpoint's `diagnose_sigma.py` output will be a reference for "what broken σ looks like" — useful in the paper as contrast for the fixed configuration.
-- The run confirms the *shared-trunk hypothesis* from the C-HIQL diagnostic: when the trunk is asked to serve multiple expectile objectives, it can't, and disagreement signals become noise. This is a clean mechanism finding independent of the success-rate numbers.
+- Final 1M checkpoints were saved. They give us the definitive β-sweep row for this configuration.
+- The checkpoint's `diagnose_sigma.py` output is a reference for "what broken σ looks like" — useful in the paper as contrast for the fixed configuration.
+- The run confirms a clean per-head-instability failure mode: at extreme τ, each independent MLP enters a target-network EMA feedback loop and diverges on its own. This is architecturally independent (would happen in the shared-trunk variant too, though likely more slowly) and loss-specific (only τ close to 0 or 1 triggers it). The lesson for the method is "keep every τ moderate", not "fix the trunk sharing".

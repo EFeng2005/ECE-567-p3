@@ -16,27 +16,15 @@ Three facts from the trained artifacts + architecture shape every option below:
 
 3. **β is inference-only.** It appears nowhere in `value_loss`, `low_actor_loss`, `high_actor_loss`, or `total_loss` — only inside `sample_actions` at [ex_chiql.py:217-230](external/ogbench/impls/agents/ex_chiql.py#L217-L230). Actors use `vs[idx]` (the τ=0.7 head), not `μ − β·σ`. One trained checkpoint → many β values, zero retraining.
 
-### 1.1 Correction: the ensemble is independent-trunk, not shared-trunk
+### 1.1 Architecture is 5 completely independent MLPs
 
-Earlier Phase-3 reports (`PHASE3_DESIGN_A_REPORT.md`, `PHASE3B_REPORT.md`, and an initial draft of this plan) described EX-HIQL's value net as "shared trunk + 5 independent last-layer heads". **That was wrong.** Reading [utils/networks.py:15-25](external/ogbench/impls/utils/networks.py#L15-L25):
+`GCValue(ensemble=True, num_ensemble=5)` uses `ensemblize` ([utils/networks.py:15-25](external/ogbench/impls/utils/networks.py#L15-L25)), which wraps the entire MLP module in `nn.vmap` with `variable_axes={'params': 0}, split_rngs={'params': True}`. Every weight tensor in the value net has leading axis 5 and each replica gets independent random init. The value net is **5 fully independent MLPs**, each with its own 3×512 trunk *and* its own output Dense. Nothing is shared. The target network is 5 independent EMAs of those 5 MLPs.
 
-```python
-def ensemblize(cls, num_qs, out_axes=0, **kwargs):
-    return nn.vmap(
-        cls,
-        variable_axes={'params': 0},
-        split_rngs={'params': True},
-        ...
-    )
-```
+This matters for every option below:
 
-and `GCValue.setup` wraps the **entire MLP module** (trunk + output) in `ensemblize`. With `split_rngs={'params': True}`, every layer's parameters have leading axis 5 and each replica is independently initialized. So the value net is **5 fully independent MLPs**, each with its own 3×512 trunk *and* its own output Dense. There is no parameter shared across the 5 heads.
-
-**What this changes in our narrative**:
-
-- Phase-3a explosion wasn't "shared trunk pulled in contradictory directions by τ=0.1 vs τ=0.9". It was each independent MLP being driven to extreme expectile fixed points — a *per-head* pathology amplified by its own target-network EMA feedback loop. Shared-trunk coupling had nothing to do with it.
-- σ-creep in Phase-3b isn't "shared-trunk gradient conflict widening over training". It's 5 independent value functions each converging to a different expectile-τ fixed point, with the gap between fixed points growing as V learns a wider dynamic range (longer-horizon goals, fuller reachability graph).
-- The counterfactual ablation — **does shared trunk behave differently?** — is no longer hypothetical. It's a distinct architecture we have never actually tested. That's why there's a new `shared-trunk-5head` branch: to run the true comparison and see if coupled-trunk expectile heads σ-creep at a different rate.
+- The Phase-3a explosion was per-MLP instability, not cross-head coupling. Each of heads 1 and 5 destabilized on its own via its own target-network EMA feedback loop (`PHASE3_DESIGN_A_REPORT.md §4.2`).
+- The Phase-3b σ-creep is also per-MLP: each of the 5 independent MLPs converges to a different expectile-τ fixed point, and the gap between fixed points widens as V learns a wider dynamic range (longer-horizon goals).
+- An **ablation to a shared-trunk architecture** is a genuine novelty experiment, not a revert. It's pursued on the `shared-trunk-5head` branch as Option 3 below.
 
 ---
 
