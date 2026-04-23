@@ -8,20 +8,84 @@ import ml_collections
 import optax
 from utils.encoders import GCEncoder, encoder_modules
 from utils.flax_utils import ModuleDict, TrainState, nonpytree_field
-from utils.networks import MLP, GCActor, GCDiscreteActor, GCValue, Identity, LengthNormalize
+from utils.networks import MLP, GCActor, GCDiscreteActor, Identity, LengthNormalize, ensemblize
+
+
+class SharedTrunkGCValue(nn.Module):
+    """Shared-trunk ensemble value network used on the `shared-trunk-chiql`
+    branch as an architectural ablation to `GCValue(ensemble=True)`.
+
+    Architecture:
+      - ONE shared MLP trunk of shape (*hidden_dims,) with layer-norm and
+        activate_final=True. Shape: (B, in_dim) -> (B, hidden_dims[-1]).
+      - N INDEPENDENT Dense(1) output heads, each initialized with its own
+        RNG key. Implemented as `ensemblize(nn.Dense, N)` = `nn.vmap(Dense,
+        variable_axes={'params': 0}, split_rngs={'params': True})`. Shape:
+        (B, hidden_dims[-1]) -> (N, B, 1).
+
+    Final output: (N, B) after squeeze(-1) — bit-compatible with the shape
+    produced by `GCValue(ensemble=True)`, so the CHIQLAgent loss/inference
+    code is unchanged.
+
+    Contrast with `GCValue(ensemble=True)`: that module wraps the whole
+    MLP in nn.vmap, producing N fully independent MLPs (≈ 5×800k params).
+    SharedTrunkGCValue shares the ~800k-param trunk across all heads and
+    only the final Dense(1) projection (513 params per head) is
+    replicated, so the only source of ensemble disagreement is those
+    final projections reading the same trunk feature.
+    """
+
+    hidden_dims: Any
+    num_heads: int = 5
+    layer_norm: bool = True
+    gc_encoder: nn.Module = None
+
+    def setup(self):
+        # Trunk: activate_final=True so heads read a post-activation/LN feature.
+        self.trunk = MLP(self.hidden_dims, activate_final=True, layer_norm=self.layer_norm)
+        # Ensembled Dense(1) — N independent scalar heads with independent init.
+        head_cls = ensemblize(nn.Dense, self.num_heads)
+        self.heads = head_cls(1)
+
+    def __call__(self, observations, goals=None, actions=None, goal_encoded=False):
+        """Same signature as GCValue.__call__. Returns shape (num_heads, B)."""
+        if self.gc_encoder is not None:
+            inputs = [self.gc_encoder(observations, goals, goal_encoded=goal_encoded)]
+        else:
+            inputs = [observations]
+            if goals is not None:
+                inputs.append(goals)
+        if actions is not None:
+            inputs.append(actions)
+        inputs = jnp.concatenate(inputs, axis=-1)
+
+        h = self.trunk(inputs)                  # (B, hidden_dims[-1])
+        return self.heads(h).squeeze(-1)        # (num_heads, B, 1) -> (num_heads, B)
 
 
 class CHIQLAgent(flax.struct.PyTreeNode):
-    """Conservative Hierarchical implicit Q-learning (C-HIQL) agent.
+    """Conservative Hierarchical implicit Q-learning (C-HIQL) agent —
+    `shared-trunk-chiql` branch variant.
+
+    This branch replaces GCValue(ensemble=True) (5 completely independent
+    MLPs) with SharedTrunkGCValue (1 shared 3×512 trunk + 5 independent
+    Dense(1) output heads). Everything else is identical to main-branch
+    CHIQL. The branch tests whether architectural trunk-sharing changes
+    how the 5-head disagreement σ behaves on antmaze-teleport-navigate-v0
+    — specifically, does coupling the heads through a shared feature
+    representation bound the ensemble spread, and does that help or hurt
+    the σ-pessimism mechanism?
 
     Minimal-surgery extension of HIQL (Park et al., 2023) per C-HIQL.md §3 and
     HIQL_EXPLAINER.md §9. Two and only two changes relative to HIQL:
 
-      (1) Training: the high-level value network has N=5 independent heads
-          instead of HIQL's 2. Each head is trained with the SAME action-free
-          expectile loss and its OWN per-head TD target (§3.2). No pessimism
-          is injected into any training loss — the training target stays
-          optimistic (§3.4, §9.3 "Every loss function does not change").
+      (1) Training: the high-level value network has N=5 heads instead of
+          HIQL's 2. Each head is trained with the SAME action-free
+          expectile loss (τ=0.7) and its OWN per-head TD target (§3.2).
+          No pessimism is injected into any training loss — the training
+          target stays optimistic (§3.4, §9.3 "Every loss function does
+          not change"). On this branch the 5 heads share the MLP trunk
+          and only differ in their final Dense(1) projection.
 
       (2) Inference (sample_actions): draw K=16 candidate subgoal reps from
           pi_high, score each by mu - beta_pes * sigma over the N heads,
@@ -329,18 +393,20 @@ class CHIQLAgent(flax.struct.PyTreeNode):
             high_actor_encoder_def = None
 
         # Define value and actor networks.
-        value_def = GCValue(
+        # NOTE: this branch (`shared-trunk-chiql`) uses SharedTrunkGCValue — one
+        # shared trunk + N independent Dense(1) output heads. Main-branch CHIQL
+        # uses GCValue(ensemble=True) which is N fully independent MLPs. Output
+        # shape (N, B) is identical so the rest of the agent is unchanged.
+        value_def = SharedTrunkGCValue(
             hidden_dims=config['value_hidden_dims'],
+            num_heads=config['num_value_heads'],
             layer_norm=config['layer_norm'],
-            ensemble=True,
-            num_ensemble=config['num_value_heads'],
             gc_encoder=value_encoder_def,
         )
-        target_value_def = GCValue(
+        target_value_def = SharedTrunkGCValue(
             hidden_dims=config['value_hidden_dims'],
+            num_heads=config['num_value_heads'],
             layer_norm=config['layer_norm'],
-            ensemble=True,
-            num_ensemble=config['num_value_heads'],
             gc_encoder=target_value_encoder_def,
         )
 
