@@ -52,7 +52,9 @@ EXTRA="$EXTRA --video_episodes=0"
 EXTRA="$EXTRA --save_interval=100000"
 EXTRA="$EXTRA --train_steps=$TRAIN_STEPS"
 
-ENVS=(antmaze-teleport-navigate-v0 antmaze-large-stitch-v0)
+# ENVS can be overridden via env var, e.g. ENVS="antmaze-large-stitch-v0"
+ENVS_STR="${ENVS:-antmaze-teleport-navigate-v0 antmaze-large-stitch-v0}"
+read -ra ENVS <<<"$ENVS_STR"
 
 for ENV_NAME in "${ENVS[@]}"; do
   # Short tag for the job name.
