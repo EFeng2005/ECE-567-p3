@@ -50,20 +50,22 @@ This is the failure mode C-HIQL targets.
 ### 3.1 Architectural change (one diagram)
 
 ```
-HIQL high-level value:                   C-HIQL high-level value:
-  s ─┐                                     s ─┐
-     ├─ trunk(s, g) ─→ V(s,g)                 ├─ trunk(s, g) ─┬─ V_1(s,g)
-  g ─┘                                     g ─┘               ├─ V_2(s,g)
-                                                              ├─ V_3(s,g)
-                                                              ├─ V_4(s,g)
-                                                              └─ V_5(s,g)
+HIQL high-level value:          C-HIQL high-level value:
+  s ─┐                            s ─┐
+     ├─ MLP(s, g) ─→ V(s,g)          ├─► MLP_1(s, g) ─→ V_1(s,g)
+  g ─┘                            g ─┤
+                                     ├─► MLP_2(s, g) ─→ V_2(s,g)
+                                     ├─► MLP_3(s, g) ─→ V_3(s,g)
+                                     ├─► MLP_4(s, g) ─→ V_4(s,g)
+                                     └─► MLP_5(s, g) ─→ V_5(s,g)
 
-  (single scalar head)                      (N=5 independent heads, shared trunk)
+  (single MLP)                    (N=5 completely independent MLPs,
+                                   each with its own trunk + output)
 ```
 
 Two — and only two — code-level changes:
 
-1. Replace the final linear layer of the high-level value network with $N$ independent linear heads $\{V_i(s, g)\}_{i=1}^N$.
+1. Replace the high-level value network with $N$ fully independent MLPs $\{V_i(s, g)\}_{i=1}^N$ (implemented as `GCValue(ensemble=True, num_ensemble=5)`, which uses `nn.vmap` with `split_rngs={'params': True}` — so every weight has leading axis $N$ and each replica is independently initialized; nothing is shared across the 5 networks).
 2. Replace $V(s_{t+k}, g)$ in the subgoal scoring step with $V_{\text{pes}}(s_{t+k}, g) = \bar V(s_{t+k}, g) - \beta_{\text{pes}}\,\sigma_V(s_{t+k}, g)$, where
 
 $$\bar V(s, g) = \frac{1}{N}\sum_{i=1}^{N} V_i(s, g),\qquad \sigma_V(s, g) = \sqrt{\frac{1}{N}\sum_{i=1}^{N}\big(V_i(s, g) - \bar V(s, g)\big)^2}.$$

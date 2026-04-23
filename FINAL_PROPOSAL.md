@@ -11,8 +11,7 @@ HIQL's high-level planner selects subgoals by maximizing V(s, g_sub), but in sto
 ## Algorithm Changes
 
 ### Architecture
-- **Shared trunk**: Keep HIQL's high-level encoder unchanged
-- **Ensemble heads**: Replace single value head with N=5 independent scalar heads V_i(s, g)
+- **5 completely independent value networks**: Replace HIQL's single high-level value MLP with an ensemble of N=5 fully independent MLPs $V_i(s, g)$, each with its own trunk and output layer, each independently initialized. Implemented as `GCValue(ensemble=True, num_ensemble=5)`, which uses `nn.vmap` with `split_rngs={'params': True}`, giving every weight a leading axis of 5 and producing N independent replicas of the whole MLP. Nothing is shared across the 5 networks.
 - **Low-level**: Completely unchanged (actor, critic, policy extraction)
 
 ### Training
