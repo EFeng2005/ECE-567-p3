@@ -51,7 +51,57 @@ import ml_collections
 import optax
 from utils.encoders import GCEncoder, encoder_modules
 from utils.flax_utils import ModuleDict, TrainState, nonpytree_field
-from utils.networks import MLP, GCActor, GCDiscreteActor, GCValue, Identity, LengthNormalize
+from utils.networks import MLP, GCActor, GCDiscreteActor, Identity, LengthNormalize, ensemblize
+
+
+class SharedTrunkGCValue(nn.Module):
+    """Shared-trunk ensemble value network used on the `shared-trunk-5head`
+    branch as an architectural ablation to `GCValue(ensemble=True)`.
+
+    One shared MLP trunk (3×512, activate_final=True, layer_norm=True) +
+    N independent `Dense(1)` output heads via `ensemblize(nn.Dense, N)` =
+    `nn.vmap(Dense, variable_axes={'params': 0}, split_rngs={'params': True})`.
+    Only the final 513-param projection differs per head; the ~800k-param
+    trunk is shared.
+
+    Output shape (N, B) matches `GCValue(ensemble=True)`, so the agent's
+    loss and inference code is unchanged. For EX-HIQL specifically, each
+    of the N heads is trained on a different τ expectile — so σ has a
+    *structural* lower bound set by the spread of τ values, not just
+    random-init noise that the shared trunk would otherwise compress
+    away (as happened in the shared-trunk CHIQL run where σ → 0.002).
+
+    Contrast across the 2×2 matrix:
+      - indep trunks + same τ (Phase-2 CHIQL):       σ ≈ 1.2    (init noise)
+      - indep trunks + per-head τ (Phase-3b):        σ ≈ 4→17   (structural, creeps)
+      - shared trunk + same τ (shared-trunk-chiql):  σ ≈ 0.002  (washed out)
+      - shared trunk + per-head τ (THIS BRANCH):     σ = ?      (what we measure)
+    """
+
+    hidden_dims: Any
+    num_heads: int = 5
+    layer_norm: bool = True
+    gc_encoder: nn.Module = None
+
+    def setup(self):
+        self.trunk = MLP(self.hidden_dims, activate_final=True, layer_norm=self.layer_norm)
+        head_cls = ensemblize(nn.Dense, self.num_heads)
+        self.heads = head_cls(1)
+
+    def __call__(self, observations, goals=None, actions=None, goal_encoded=False):
+        """Same signature as GCValue.__call__. Returns shape (num_heads, B)."""
+        if self.gc_encoder is not None:
+            inputs = [self.gc_encoder(observations, goals, goal_encoded=goal_encoded)]
+        else:
+            inputs = [observations]
+            if goals is not None:
+                inputs.append(goals)
+        if actions is not None:
+            inputs.append(actions)
+        inputs = jnp.concatenate(inputs, axis=-1)
+
+        h = self.trunk(inputs)                  # (B, hidden_dims[-1])
+        return self.heads(h).squeeze(-1)        # (num_heads, B, 1) -> (num_heads, B)
 
 
 class EXCHIQLAgent(flax.struct.PyTreeNode):
@@ -302,18 +352,20 @@ class EXCHIQLAgent(flax.struct.PyTreeNode):
             low_actor_encoder_def = GCEncoder(state_encoder=Identity(), concat_encoder=goal_rep_def)
             high_actor_encoder_def = None
 
-        value_def = GCValue(
+        # NOTE: this branch (`shared-trunk-5head`) uses SharedTrunkGCValue —
+        # one shared 3×512 trunk + N independent Dense(1) output heads. Output
+        # shape (N, B) is bit-identical to GCValue(ensemble=True), so the rest
+        # of the agent (value_loss, actor losses, sample_actions) is unchanged.
+        value_def = SharedTrunkGCValue(
             hidden_dims=config['value_hidden_dims'],
+            num_heads=n_heads,
             layer_norm=config['layer_norm'],
-            ensemble=True,
-            num_ensemble=n_heads,
             gc_encoder=value_encoder_def,
         )
-        target_value_def = GCValue(
+        target_value_def = SharedTrunkGCValue(
             hidden_dims=config['value_hidden_dims'],
+            num_heads=n_heads,
             layer_norm=config['layer_norm'],
-            ensemble=True,
-            num_ensemble=n_heads,
             gc_encoder=target_value_encoder_def,
         )
 
