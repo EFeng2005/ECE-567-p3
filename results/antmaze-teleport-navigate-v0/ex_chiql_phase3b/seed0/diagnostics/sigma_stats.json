@@ -1,0 +1,18 @@
+{
+  "n_states": 500,
+  "K": 16,
+  "ckpt": "/home/y_f/ece567/runs/ex_chiql_phase3b/dummy/ex_chiql_phase3b/sd000_20260422_182343/params_1000000.pkl",
+  "sigma_mean": 15.10607188084349,
+  "sigma_std": 14.120926357419322,
+  "sigma_p10": 1.6743892192840582,
+  "sigma_p50": 10.743146419525146,
+  "sigma_p90": 35.14079551696778,
+  "mu_mean": -17.109321952476392,
+  "mu_std": 14.409267163272288,
+  "per_state_mu_sig_corr_mean": -0.6382921190375173,
+  "per_state_mu_sig_corr_std": 0.2815583206881185,
+  "overlap_beta0_vs_beta0.25": 0.78,
+  "overlap_beta0_vs_beta0.5": 0.684,
+  "overlap_beta0_vs_beta1.0": 0.606,
+  "overlap_beta0_vs_beta2.0": 0.522
+}
