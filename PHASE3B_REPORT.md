@@ -84,7 +84,32 @@ The method's assumption holds only when `β · σ` is small relative to `|μ|`:
 
 `v_std < 10` is therefore a **mechanism-motivated early-stopping criterion** — it's derived from the method's own assumption about how the pessimism term is supposed to behave, not a post-hoc selection on the test-set curve. It can be measured without looking at eval success rates, only from `train.csv` metrics.
 
-### 3.1 When each seed crosses σ = 10
+### 3.1 Caveats — the threshold is less clean than it looks
+
+Three soft spots in the σ<10 story that a reviewer (or we, when writing this up) should be explicit about:
+
+1. **15% is a judgment call.** A 10% or 20% cutoff would also be defensible; they map to σ≈6.6 and σ≈13.2 respectively. The step at which the mean eval "peaks" is within a few 100k-windows of each of those. We picked 15% because a correction that's ≈1/6 of the signal intuitively stops being "minor," but there is no first-principles derivation.
+
+2. **The portable rule is the ratio, not σ=10.** `|μ| ≈ 33` is specific to `antmaze-teleport-navigate-v0` with reward −1/step and `γ=0.99`. On a different env, `|μ|` could be 10 or 200 and the σ threshold would scale accordingly. The environment-agnostic version of the rule is:
+
+   $$ \text{stop when } \frac{\beta \cdot \sigma}{|\mu|} \ge 0.15 $$
+
+   Reporting this ratio as a training-time diagnostic (alongside raw σ and `grad/norm`) is more transferable than reporting σ directly. Future runs should log it.
+
+3. **3 seeds is thin empirical support.** The coincidence of "seeds 1/2 peak at step 400k" and "σ is 7-8 at step 400k" is one corroborating data point. With per-seed 1σ on a 250-episode eval at ≈3 pts, the "peak-then-regression" pattern could partially be eval noise rather than a clean mechanism signal. The σ-crossing story would be more convincing with 5-10 seeds.
+
+### 3.2 Phase-3c is the clean-up move
+
+The σ<10 rule is useful here because we hadn't yet tried the single most obvious numerical safeguard — gradient clipping. Phase-3c adds `optax.clip_by_global_norm(10.0)` to the optimizer (see [PHASE3C_PLAN.md](PHASE3C_PLAN.md) §2.1) on the hypothesis that bounded per-step updates prevent the slow magnification of `‖h‖` that drives σ-creep.
+
+Two possible outcomes for Phase-3c:
+
+- **Clip holds σ flat through step 1M.** Then `σ<10` is satisfied for the entire run and the early-stopping rule becomes vacuous — we just report step-1M numbers like every other ogbench method. No threshold to defend to anyone.
+- **Clip doesn't hold σ.** Then σ-creep is structural to shared-trunk ensembles, and we need per-head trunks ([PHASE3_DESIGN_A_REPORT.md §7.3](PHASE3_DESIGN_A_REPORT.md#L290)) — the σ<10 rule becomes a moot intermediate finding on the way to that fix.
+
+Either way, the σ<10 threshold is not the long-term story we'd like to tell. It's a *diagnostic* that exposed the σ-creep mechanism; the *fix* is Phase-3c. If Phase-3c works, the σ<10 rule exits the paper narrative entirely.
+
+### 3.3 When each seed crosses σ = 10
 
 | Seed | Crosses σ = 10 between |
 |---|---|
