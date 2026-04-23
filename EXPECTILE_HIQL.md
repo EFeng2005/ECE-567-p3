@@ -1,6 +1,8 @@
 # Expectile-Heads HIQL (EX-HIQL): Distributional Pessimism for Offline Hierarchical GCRL
 
-> **Idea spec** — parallel in style to `C-HIQL.md`. Written after Phase-2 C-HIQL underperformed on `antmaze-teleport-navigate-v0` and the σ diagnostic (`scripts/diagnose_sigma.py`) found that the shared-trunk random-init ensemble's disagreement is **anti-correlated** with μ across candidate subgoals (per-state corr ≈ −0.44). The mechanism assumption from [C-HIQL.md §4.1](C-HIQL.md) — "σ is largest where V is most overestimated" — was contradicted by the data.
+> **ERRATUM (2026-04-23)**: Multiple passages in this doc refer to a "shared trunk" in C-HIQL / EX-HIQL (see §3.1, §9, §12). **That architectural claim is incorrect.** `GCValue(ensemble=True)` actually produces 5 fully independent MLPs via `nn.vmap` with `split_rngs={'params': True}` (see [utils/networks.py:15-25](external/ogbench/impls/utils/networks.py#L15-L25)). The σ-from-random-init anti-correlation finding (per-state corr ≈ −0.44) is unchanged and still motivates EX-HIQL. The mechanism chain in §12 (wide-τ explosion attributed to shared-trunk conflict) is rewritten correctly in [PHASE3B_IMPROVEMENT_PLAN.md §1.1](PHASE3B_IMPROVEMENT_PLAN.md). A `shared-trunk-5head` branch has been opened to test the truly-shared-trunk variant.
+
+> **Idea spec** — parallel in style to `C-HIQL.md`. Written after Phase-2 C-HIQL underperformed on `antmaze-teleport-navigate-v0` and the σ diagnostic (`scripts/diagnose_sigma.py`) found that the random-init ensemble's disagreement is **anti-correlated** with μ across candidate subgoals (per-state corr ≈ −0.44). The mechanism assumption from [C-HIQL.md §4.1](C-HIQL.md) — "σ is largest where V is most overestimated" — was contradicted by the data.
 >
 > This document proposes a minimal change to **C-HIQL** that makes σ a principled signal of stochasticity by replacing random-init ensemble diversity with **per-head expectile diversity**.
 

@@ -1,6 +1,8 @@
 # EX-HIQL Phase-3b Report: Tight Expectile Spread + σ-Based Early Stopping
 
-**Commit**: `12d20e3` on branch `expectile-heads`.
+> **ERRATUM (2026-04-23)**: This report uses the phrases "shared-trunk numerical explosion", "shared-trunk gradient conflict", and "σ-creep is structural to shared-trunk ensembles". **All three are incorrect.** The EX-HIQL value net is actually 5 fully independent MLPs (see [PHASE3B_IMPROVEMENT_PLAN.md §1.1](PHASE3B_IMPROVEMENT_PLAN.md) for the full correction). σ-creep in this run came from 5 independent expectile fixed-points diverging as V learns longer horizons — not from trunks fighting each other. Numerical results (σ trajectory, eval scores, grad norms) are unchanged; only the mechanism narrative is corrected. A `shared-trunk-5head` branch has been opened to actually test the shared-trunk architecture as an ablation.
+
+**Commit**: `12d20e3` on branch `expectile-heads` (renamed to `indep-trunk-5head`).
 **Env**: `antmaze-teleport-navigate-v0`, 3 seeds × 1M steps.
 **Agent**: `ex_chiql` with `head_expectiles=(0.6, 0.65, 0.7, 0.75, 0.8)`, `actor_expectile_index_{low,high}=2` (τ=0.7), `pessimism_beta=0.5`.
 **Wall time**: ~5h on RTX 5090 (WSL).

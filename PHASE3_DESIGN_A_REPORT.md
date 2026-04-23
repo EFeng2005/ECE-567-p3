@@ -1,6 +1,8 @@
 # EX-HIQL Phase 3 Design A — Run Report (2026-04-22)
 
-**Commit**: `8be4b68` on branch `expectile-heads`.
+> **ERRATUM (2026-04-23)**: This report's mechanism narrative attributes the wide-τ explosion to "shared trunk pulled in contradictory directions by τ=0.1 and τ=0.9". **That premise is wrong.** `GCValue(ensemble=True)` uses `nn.vmap` with `split_rngs={'params': True}` (see [utils/networks.py:15-25](external/ogbench/impls/utils/networks.py#L15-L25)), which gives **5 fully independent MLPs**, not a shared trunk. The explosion data (grad_norm → 4.7M, V → −14,700) is real, but the *cause* is per-head instability under extreme expectile τ plus target-network EMA feedback — not trunk coupling. The corrected reading lives in [PHASE3B_IMPROVEMENT_PLAN.md §1.1](PHASE3B_IMPROVEMENT_PLAN.md). The body of this report is kept as historical record; treat every "shared trunk" phrase below as an artifact of the original mis-reading.
+
+**Commit**: `8be4b68` on branch `expectile-heads` (renamed to `indep-trunk-5head`).
 **Env**: `antmaze-teleport-navigate-v0`.
 **Agent**: `ex_chiql` (per-head expectiles, `head_expectiles=(0.1, 0.3, 0.5, 0.7, 0.9)`, actor pinned to head 3 = τ=0.7).
 **Seeds**: 3 × 1M steps, parallel on one RTX 5090 laptop inside WSL2.

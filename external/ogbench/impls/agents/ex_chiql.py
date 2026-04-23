@@ -1,9 +1,9 @@
 """Expectile-Heads C-HIQL (EX-HIQL).
 
 Response to the Phase-2 C-HIQL diagnostic finding (scripts/diagnose_sigma.py,
-per-state μ↔σ correlation ≈ −0.44): the shared-trunk random-init ensemble's
-disagreement σ tracks feature magnitude, not bootstrap-target stochasticity,
-so the pessimistic scoring `μ − β·σ` pulls in the wrong direction.
+per-state μ↔σ correlation ≈ −0.44): the random-init ensemble's disagreement
+σ tracks feature magnitude, not bootstrap-target stochasticity, so the
+pessimistic scoring `μ − β·σ` pulls in the wrong direction.
 
 EX-HIQL fixes this with a single change to the supervision signal: each of
 the N=5 value heads is trained with a DIFFERENT expectile τ_i drawn from
@@ -15,8 +15,13 @@ its spread (σ > 0). σ is now a structural estimator of local stochasticity
 rather than an epiphenomenon of initialisation.
 
 What does NOT change vs C-HIQL (spec: EXPECTILE_HIQL.md §3.5):
-  - Architecture: same GCValue(ensemble=True, num_ensemble=5), shared trunk
-    plus 5 independent last-layer projections.
+  - Architecture: same GCValue(ensemble=True, num_ensemble=5). NOTE: despite
+    earlier docs describing this as "shared trunk + independent last layer",
+    GCValue uses utils.networks.ensemblize which wraps the entire MLP in
+    nn.vmap with variable_axes={'params': 0}, split_rngs={'params': True}.
+    Each of the 5 heads is therefore a FULL INDEPENDENT MLP (its own trunk
+    and output weights, independently initialized). A true shared-trunk
+    variant lives on the `shared-trunk-5head` branch.
   - Inference rule: μ − β·σ scoring across heads, same as C-HIQL
     (`sample_actions` is bit-identical to `chiql.py`).
   - β_pes is inference-only — one trained checkpoint serves any β.
