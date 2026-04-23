@@ -345,7 +345,13 @@ class EXCHIQLAgent(flax.struct.PyTreeNode):
         network_args = {k: v[1] for k, v in network_info.items()}
 
         network_def = ModuleDict(networks)
-        network_tx = optax.adam(learning_rate=config['lr'])
+        # Phase-3b: global-norm gradient clipping to guard against the shared-trunk
+        # blowup diagnosed in PHASE3_DESIGN_A_REPORT.md §4 (grad/norm reached ~1.5M
+        # with wide τ). Cheap safety net even with the tightened head_expectiles.
+        network_tx = optax.chain(
+            optax.clip_by_global_norm(config['grad_clip_norm']),
+            optax.adam(learning_rate=config['lr']),
+        )
         network_params = network_def.init(init_rng, **network_args)['params']
         network = TrainState.create(network_def, network_params, tx=network_tx)
 
@@ -372,6 +378,7 @@ def get_config():
             actor_expectile_index_high=2,  # index of τ=0.7 head in the new tuple
             num_subgoal_candidates=16,
             pessimism_beta=0.5,
+            grad_clip_norm=10.0,  # Phase-3b: global-norm gradient clip (see create()).
 
             # HIQL-inherited hyperparameters (unchanged).
             lr=3e-4,

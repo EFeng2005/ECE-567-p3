@@ -1,20 +1,24 @@
 diff --git a/impls/agents/__init__.py b/impls/agents/__init__.py
-index 4596fe2..8ee495b 100644
+index 4596fe2..cc6a49d 100644
 --- a/impls/agents/__init__.py
 +++ b/impls/agents/__init__.py
-@@ -1,3 +1,4 @@
+@@ -1,4 +1,6 @@
 +from agents.chiql import CHIQLAgent
  from agents.crl import CRLAgent
++from agents.ex_chiql import EXCHIQLAgent
  from agents.gcbc import GCBCAgent
  from agents.gciql import GCIQLAgent
-@@ -7,6 +8,7 @@ from agents.qrl import QRLAgent
+ from agents.gcivl import GCIVLAgent
+@@ -7,7 +9,9 @@ from agents.qrl import QRLAgent
  from agents.sac import SACAgent
  
  agents = dict(
 +    chiql=CHIQLAgent,
      crl=CRLAgent,
++    ex_chiql=EXCHIQLAgent,
      gcbc=GCBCAgent,
      gciql=GCIQLAgent,
+     gcivl=GCIVLAgent,
 diff --git a/impls/agents/chiql.py b/impls/agents/chiql.py
 new file mode 100644
 index 0000000..9c36718
