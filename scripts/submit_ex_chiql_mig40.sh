@@ -30,7 +30,12 @@ WANDB_MODE="${WANDB_MODE:-offline}"
 SAVE_DIR="${SAVE_DIR:-$SCRATCH_ROOT/ogbench/ex_chiql_phase3c}"
 DATASET_DIR="${DATASET_DIR:-$SCRATCH_ROOT/ogbench/data}"
 VENV_PATH="${VENV_PATH:-$REPO_ROOT/.venv/ogbench}"
-WALLTIME="${WALLTIME:-10:00:00}"
+WALLTIME="${WALLTIME:-07:55:00}"
+# Class QoS caps at 8h; keep a 5-min buffer so sbatch has time to finalize.
+TRAIN_STEPS="${TRAIN_STEPS:-600000}"
+# 600k is well past Phase-3b's step-400k peak and its step-500-600k degradation
+# window — enough to tell whether the grad-clip holds σ and the peak through
+# late training. Full 1M would need ~12h on this MIG slice, above the cap.
 
 [ -f "$SBATCH" ] || { echo "Missing SLURM template: $SBATCH"; exit 1; }
 [ -d "$VENV_PATH" ] || { echo "VENV_PATH not found: $VENV_PATH"; exit 1; }
@@ -45,6 +50,7 @@ EXTRA="$EXTRA --agent.pessimism_beta=0.5"
 EXTRA="$EXTRA --agent.high_alpha=3.0 --agent.low_alpha=3.0"
 EXTRA="$EXTRA --video_episodes=0"
 EXTRA="$EXTRA --save_interval=100000"
+EXTRA="$EXTRA --train_steps=$TRAIN_STEPS"
 
 ENVS=(antmaze-teleport-navigate-v0 antmaze-large-stitch-v0)
 
