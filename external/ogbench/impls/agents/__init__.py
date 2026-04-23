@@ -1,5 +1,6 @@
 from agents.chiql import CHIQLAgent
 from agents.crl import CRLAgent
+from agents.ex_chiql import EXCHIQLAgent
 from agents.gcbc import GCBCAgent
 from agents.gciql import GCIQLAgent
 from agents.gcivl import GCIVLAgent
@@ -10,6 +11,7 @@ from agents.sac import SACAgent
 agents = dict(
     chiql=CHIQLAgent,
     crl=CRLAgent,
+    ex_chiql=EXCHIQLAgent,
     gcbc=GCBCAgent,
     gciql=GCIQLAgent,
     gcivl=GCIVLAgent,
