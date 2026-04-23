@@ -29,6 +29,10 @@ ogbench-train-*.out
 monitor.log
 monitor_nohup.out
 
+# Live symlinks to WSL output dirs (content lives on WSL Linux FS;
+# CSV/flags.json are copied into results/ for git tracking, .pkl stays on WSL)
+runs_wsl_*/
+
 # Local data
 data/
 datasets/
