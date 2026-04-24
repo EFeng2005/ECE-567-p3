@@ -1,17 +1,64 @@
 \documentclass[11pt]{article}
-\usepackage[margin=1in]{geometry}
+
+% ACL style (change [review] -> [final] for camera-ready, or omit for final)
+\usepackage[review]{acl}
+
+% Standard ACL-recommended packages
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{inconsolata}
+
+% Math and table packages
 \usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{multirow}
-\usepackage{graphicx} % Required for inserting images
+\usepackage{graphicx}
 
-\title{EECS567 Phase 2 Report}
-\author{Zhongqi Huang}
-\date{April 2026}
+\title{EX-HIQL: Per-Head Expectile Diversity and Residual-$\sigma$ Scoring
+       for Offline Hierarchical Goal-Conditioned RL on Stochastic Environments}
+
+\author{Zhongqi Huang \\
+  University of Michigan \\
+  EECS 567 Phase 2 Report \\
+  \texttt{zqhuang@umich.edu} \\}
 
 \begin{document}
-
 \maketitle
+
+\begin{abstract}
+HIQL is the state-of-the-art hierarchical offline goal-conditioned RL
+method but collapses by roughly 40 points on stochastic variants of
+AntMaze in which random teleport tiles introduce bimodal return
+distributions.
+We diagnose the cause in three diagnostics (value-function calibration,
+oracle-subgoal ablation, and subgoal-density visualisation) and show
+the natural remedy---C-HIQL-style ensemble pessimism---in fact
+underperforms HIQL because its random-initialisation disagreement
+signal $\sigma_V$ is strongly anti-correlated with the value mean
+$\bar V$ ($r_s = -0.44$), inverting the pessimism's intent.
+We introduce \textbf{EX-HIQL}, which replaces random-initialisation
+diversity with per-head expectile diversity: the $N$ value heads are
+trained with distinct expectiles $\tau_i$, guaranteeing $\sigma_V \to 0$
+at deterministic transitions and $\sigma_V > 0$ at stochastic ones.
+Using the environment's known teleporter geometry, we directly verify
+that EX-HIQL's $\sigma$ concentrates at teleport-adjacent states (near/far
+ratio $1.66\times$, distance-$\sigma$ correlation $-0.36$)---the first
+geometric confirmation of the stochasticity--$\sigma$ correspondence we
+are aware of.
+A complementary \emph{residual-$\sigma$ scoring rule} fits $\sigma
+\approx \hat\alpha + \hat\gamma\,\bar V$ at inference and scores
+candidates using the orthogonal residual $\sigma^\perp$, amplifying
+the teleporter signal to a $-0.38$ correlation while driving
+$\sigma^\perp \to 0$ at deterministic regions.
+On \texttt{antmaze-teleport-navigate-v0}, the final configuration
+improves 3-seed mean success from HIQL's $0.404$ to $0.429$ ($+2.5$
+points), with all three seeds individually exceeding baseline and
+three mechanistically-distinct decoupling strategies converging on
+the same ceiling.
+\end{abstract}
 
 \section{Introduction}
 \label{sec:intro}
@@ -174,7 +221,7 @@ The same algorithm, the same hyperparameters, and the same number of gradient
 steps yield a $\sim$40-point performance gap solely due to the presence of
 random teleportation tiles.
 
-\begin{table}[h]
+\begin{table*}[t]
   \centering
   \caption{HIQL training-eval success rate at 1\,M gradient steps.
            Per-task numbers are for the \texttt{antmaze-teleport} (top) and
@@ -191,7 +238,7 @@ random teleportation tiles.
     large (s1)    & \multicolumn{5}{c}{---} & \textbf{0.83} \\
     \bottomrule
   \end{tabular}
-\end{table}
+\end{table*}
 
 HIQL is a hierarchical offline goal-conditioned RL algorithm.
 Its high-level policy $\pi_\text{high}$ selects a subgoal representation
@@ -253,7 +300,7 @@ This yields 70\,892 and 49\,757 $(s, g)$ pairs for \texttt{teleport} and
 Figure~\ref{fig:diag1_scatter} shows the pooled $\hat{V}$ vs.\ $G$ scatter
 for both environments.
 
-\begin{figure}[h]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=0.85\linewidth]{diag1_scatter.png}
   \caption{Pooled scatter of $\hat{V}(s_t, g)$ vs.\ realized return $G_t$
@@ -263,7 +310,7 @@ for both environments.
            \texttt{teleport} (right) is substantially more diffuse, with a
            long upward tail of highly over-estimated states.}
   \label{fig:diag1_scatter}
-\end{figure}
+\end{figure*}
 
 \paragraph{The mean is misleading.}
 The pooled mean bias $\hat{V} - G$ is $+1.45$ for \texttt{teleport} and
@@ -278,7 +325,7 @@ from successful runs.
 Table~\ref{tab:percentile_bias} reports percentiles of $\hat{V} - G$ for
 all points and for the failed-episode subset.
 
-\begin{table}[h]
+\begin{table*}[t]
   \centering
   \caption{Percentiles of bias $\hat{V} - G$.}
   \label{tab:percentile_bias}
@@ -293,7 +340,7 @@ all points and for the failed-episode subset.
     large    & fail & 10\,000 & $+0.2$ & $+7.4$  & $\mathbf{+9.6}$  & $+31.3$ \\
     \bottomrule
   \end{tabular}
-\end{table}
+\end{table*}
 
 The teleport p95 exceeds large by 70\% overall, and by $4\times$ on the
 failed-episode subset---exactly the regime where the agent is struggling
@@ -329,7 +376,7 @@ pattern holds across all five tasks: every \texttt{teleport} task has
 $r < 0.61$, with task~1 essentially uncorrelated ($r = 0.19$), while
 four of five \texttt{large} tasks exceed $r = 0.82$.
 
-\begin{figure}[h]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{diag1b_per_task_hist.png}
   \caption{Per-task bias distributions ($\hat{V} - G$) for
@@ -339,7 +386,7 @@ four of five \texttt{large} tasks exceed $r = 0.82$.
            and higher p95 values; tasks with lower success rates
            (e.g., task~1 at 22\%) exhibit the most extreme overestimation.}
   \label{fig:per_task_hist}
-\end{figure}
+\end{figure*}
 
 \paragraph{Bimodal error distribution.}
 Restricting to the first 50 steps of each episode (before truncation-pinned
@@ -389,7 +436,7 @@ unchanged.
 Table~\ref{tab:diag2} compares per-task success rates under vanilla HIQL
 and oracle-subgoal HIQL.
 
-\begin{table}[h]
+\begin{table*}[t]
   \centering
   \caption{Per-task success rate: vanilla vs.\ oracle-subgoal HIQL
            (20 episodes per task).}
@@ -407,7 +454,7 @@ and oracle-subgoal HIQL.
       & oracle  & 0.70 & \textbf{0.95} & \textbf{1.00} & 0.90 & 0.75 & \textbf{0.86} \\
     \bottomrule
   \end{tabular}
-\end{table}
+\end{table*}
 
 \paragraph{Interpretation.}
 Oracle subgoals yield only modest gains in both environments:
@@ -455,7 +502,7 @@ whose goal-representation embedding $\phi([o; o])$ is most similar to $z$
 The resulting point cloud is visualized as a KDE density overlay on the
 maze map for both environments (Figure~\ref{fig:diag3_density}).
 
-\begin{figure}[h]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{subgoal_density_comparison.png}
   \caption{Subgoal density from $\pi_\text{high}$ for a fixed $(s, g)$ pair
@@ -471,7 +518,7 @@ maze map for both environments (Figure~\ref{fig:diag3_density}).
            modes along the top of the maze, broadly covering the
            direction of the goal.}
   \label{fig:diag3_density}
-\end{figure}
+\end{figure*}
 
 \paragraph{Results.}
 The contrast is stark.
@@ -781,7 +828,7 @@ Cross-producted with the supervision choice (same $\tau$ vs.\ per-head
 $\tau$), this yields a $2 \times 2$ matrix whose outcomes we summarise in
 Table~\ref{tab:2x2}.
 
-\begin{table}[h]
+\begin{table*}[t]
   \centering
   \caption{$2{\times}2$ ablation: architecture $\times$ supervision on
            \texttt{antmaze-teleport-navigate-v0}, 3 seeds, step~1\,M.
@@ -799,7 +846,7 @@ Table~\ref{tab:2x2}.
     Shared trunk & tight ($0.6..0.8$) & 0.405 & $\sim$4.3 (flat) & $-0.81$ & Signal bounded but too weak \\
     \bottomrule
   \end{tabular}
-\end{table}
+\end{table*}
 
 Only the \textbf{indep-trunks $\times$ tight per-head $\tau$} cell is
 simultaneously (i)~numerically stable, (ii)~produces a $\sigma$ signal that is
@@ -946,7 +993,7 @@ structurally present (per-head $\tau$ guarantees it) but too spatially
 flat to be useful at inference
 (Table~\ref{tab:teleport_overlay}).
 
-\begin{table}[h]
+\begin{table*}[t]
   \centering
   \caption{Diag~5: near/far $\sigma$ ratio and $d$-$\sigma$ correlation.
            $n_\text{near}$ counts dataset states within 3 world units of a
@@ -968,7 +1015,7 @@ flat to be useful at inference
            1.40 & $-0.05$ \\
     \bottomrule
   \end{tabular}
-\end{table}
+\end{table*}
 
 \paragraph{Interpretation.}
 This is, to our knowledge, the first direct empirical confirmation in the
@@ -1030,7 +1077,7 @@ The mean $\sigma^\perp$ at teleport-adjacent states is
 $+7.4, +9.5, +13.6$: clearly positive and $8$--$14\times$ larger than
 the corresponding far-class mean.
 
-\begin{table}[h]
+\begin{table*}[t]
   \centering
   \caption{Diag~6: per-class statistics of the raw $\sigma$ versus the
            residual $\sigma^\perp$ on Phase-3b, 3 seeds, 2000 states
@@ -1056,7 +1103,7 @@ the corresponding far-class mean.
                   & $+$10.18 & $-0.69$ & $+$10.87 & $\mathbf{-0.380}$ \\
     \bottomrule
   \end{tabular}
-\end{table}
+\end{table*}
 
 \paragraph{Results: $d$-$\sigma^\perp$ correlation strictly strengthens.}
 Across every seed, the Pearson correlation between distance-to-teleport
@@ -1079,7 +1126,7 @@ distance-to-teleport: $\sigma^\perp$ (green) collapses tightly toward
 zero for $d \gtrsim 6$, whereas raw $\sigma$ (blue) retains a substantial
 baseline offset ($\sim$14) at the same distances.
 
-\begin{figure}[h]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=0.95\linewidth]{diag6_residual_overlay.png}
   \caption{Diag~6 on Phase-3b seed~0 ($N = 2000$ states).
@@ -1095,7 +1142,7 @@ baseline offset ($\sim$14) at the same distances.
              teleport-adjacent states.
            Red X: teleport-in; orange square: teleport-out.}
   \label{fig:diag6}
-\end{figure}
+\end{figure*}
 
 \paragraph{Interpretation.}
 Diag~6 confirms the two-component decomposition empirically: once the
@@ -1159,7 +1206,7 @@ $-16$ pt), and the fraction heading toward the goal climbs to
 pt).
 Figure~\ref{fig:diag7} shows the side-by-side comparison.
 
-\begin{figure}[h]
+\begin{figure*}[t]
   \centering
   \includegraphics[width=\linewidth]{diag7_subgoal_density_filtered.png}
   \caption{Diag~7: $\pi_\text{high}$ subgoal density on EX-HIQL
@@ -1177,7 +1224,7 @@ Figure~\ref{fig:diag7} shows the side-by-side comparison.
     16\%---a 4$\times$ redistribution despite $\pi_\text{high}$ being
     unchanged relative to HIQL.}
   \label{fig:diag7}
-\end{figure}
+\end{figure*}
 
 \paragraph{Interpretation.}
 The contrast between the two panels is direct evidence that the
@@ -1217,7 +1264,7 @@ Adding residual-$\sigma$ scoring to the same Phase-3b checkpoint yields
 modification---\textbf{+2.5 points} total over HIQL
 (Table~\ref{tab:main_results}).
 
-\begin{table}[h]
+\begin{table*}[t]
   \centering
   \caption{Step-1M overall-success rate on
            \texttt{antmaze-teleport-navigate-v0}, 3-seed mean, inference
@@ -1241,7 +1288,7 @@ modification---\textbf{+2.5 points} total over HIQL
                              & (same checkpoint) & ---                   & \textbf{0.429} & \textbf{+2.5} \\
     \bottomrule
   \end{tabular}
-\end{table}
+\end{table*}
 
 \paragraph{Scoring-rule ablation.}
 Because $\beta_\text{pes}$ enters only at inference,
@@ -1253,7 +1300,7 @@ ranks over the $K = 16$ candidates per state) and normalised scoring
 ($\bar V - \beta\,\sigma/(|\bar V|+1)$), evaluated on the identical
 Phase-3b step-1M checkpoint.
 
-\begin{table}[h]
+\begin{table*}[t]
   \centering
   \caption{Scoring-rule ablation on the Phase-3b step-1M checkpoint;
            3-seed mean.
@@ -1273,7 +1320,7 @@ Phase-3b step-1M checkpoint.
     \textbf{residual-$\sigma$ (ours)} & 0.431 & \textbf{0.429} & 0.399 & \textbf{0.429} \\
     \bottomrule
   \end{tabular}
-\end{table}
+\end{table*}
 
 \paragraph{Convergent evidence.}
 Three mechanistically distinct decouplings of $\sigma$ from $\bar V$---
