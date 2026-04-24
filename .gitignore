@@ -26,8 +26,11 @@ checkpoints/
 tmp/
 ogbench-*.out
 ogbench-train-*.out
+slurm-*.out
 monitor.log
 monitor_nohup.out
+*.log
+*.npz
 
 # Live symlinks to WSL output dirs (content lives on WSL Linux FS;
 # CSV/flags.json are copied into results/ for git tracking, .pkl stays on WSL)
@@ -37,6 +40,9 @@ runs_wsl_*/
 data/
 datasets/
 scratch/
+
+# Raw SLURM training outputs (organize into results/{env}/{method}/seed{N}/ before commit)
+results/raw/
 
 # Internal / temporary docs
 docs/
