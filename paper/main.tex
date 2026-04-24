@@ -227,7 +227,7 @@ Figure~\ref{fig:diag1_scatter} shows the pooled scatter.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.85\linewidth]{diag1_scatter.png}
+  \includegraphics[width=0.70\linewidth]{diag1_scatter.png}
   \caption{Pooled scatter of $\hat{V}(s_t, g)$ vs.\ realized return $G_t$
            for all rollout steps.
            The dashed line marks perfect calibration ($\hat{V} = G$).
@@ -292,7 +292,7 @@ $r = 0.19$), while four of five large tasks exceed $r = 0.82$.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=\linewidth]{diag1b_per_task_hist.png}
+  \includegraphics[width=0.78\linewidth]{diag1b_per_task_hist.png}
   \caption{Per-task bias distributions ($\hat{V} - G$) for
            \texttt{teleport} (top row) and \texttt{large} (bottom row).
            The dashed red line marks the 95th percentile for each task.
@@ -309,7 +309,7 @@ distributional source of the problem
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.6\linewidth]{diag1b_early_steps_hist.png}
+  \includegraphics[width=0.45\linewidth]{diag1b_early_steps_hist.png}
   \caption{Bias distribution $\hat{V} - G$ restricted to the first 50 steps
            of each episode.
            \texttt{large} (blue) is unimodal, centred at $\approx +7$.
@@ -389,7 +389,7 @@ for both environments.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=\linewidth]{subgoal_density_comparison.png}
+  \includegraphics[width=0.80\linewidth]{subgoal_density_comparison.png}
   \caption{Subgoal density from $\pi_\text{high}$ for a fixed $(s, g)$ pair
            ($N = 1000$ samples).
            Blue circle: agent position $s_t$.
@@ -903,7 +903,7 @@ beyond $d \gtrsim 6$, whereas raw $\sigma$ retains a substantial baseline
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.95\linewidth]{diag6_residual_overlay.png}
+  \includegraphics[width=0.78\linewidth]{diag6_residual_overlay.png}
   \caption{Diag~6 on Phase-3b seed~0 ($N = 2000$ states).
            \textbf{Top-left:} spatial map of mean $\sigma$ per state.
            \textbf{Top-right:} same map for $\sigma^\perp = \sigma - (\hat\alpha + \hat\gamma\,\bar V)$,
@@ -957,7 +957,7 @@ $4\% \to 16\%$ (absolute $+12$\,pt, $3.6\times$ relative increase).
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=0.92\linewidth]{diag7_subgoal_density_filtered.png}
+  \includegraphics[width=0.78\linewidth]{diag7_subgoal_density_filtered.png}
   \caption{Diag~7: $\pi_\text{high}$ subgoal density on Phase-3b (seed~0,
     task~1; $N{=}1000$). Panel~A is the raw density; Panel~B is the top-50
     after residual-$\sigma$ filtering. Teleport-out collapse
