@@ -1,0 +1,66 @@
+{
+  "n_states": 2000,
+  "K": 16,
+  "ckpt": "/home/y_f/ece567/runs/ex_chiql_phase3b/dummy/ex_chiql_phase3b/sd002_20260422_182440/params_1000000.pkl",
+  "teleport_in_xys": [
+    [
+      20.0,
+      12.0
+    ],
+    [
+      0.0,
+      16.0
+    ]
+  ],
+  "teleport_out_xys": [
+    [
+      24.0,
+      0.0
+    ],
+    [
+      0.0,
+      20.0
+    ],
+    [
+      36.0,
+      20.0
+    ]
+  ],
+  "NEAR_RADIUS": 3.0,
+  "FAR_RADIUS": 6.0,
+  "overall": {
+    "sigma_mean": 21.148866651591437,
+    "sigma_median": 20.79664371907711,
+    "mu_mean": -13.836654185282379,
+    "dist_to_teleport_mean": 11.335140711811949
+  },
+  "by_category": {
+    "near": {
+      "n_states": 20,
+      "sigma_mean": 32.756981168314816,
+      "sigma_median": 33.51097354106605,
+      "sigma_p90": 44.34056837409735,
+      "mu_mean": -17.455958128123893,
+      "dist_mean": 2.2476496031796556
+    },
+    "boundary": {
+      "n_states": 247,
+      "sigma_mean": 27.471569051521147,
+      "sigma_median": 27.263918069191277,
+      "sigma_p90": 41.85280881673098,
+      "mu_mean": -11.375134936839695,
+      "dist_mean": 4.712573058087006
+    },
+    "far": {
+      "n_states": 1733,
+      "sigma_mean": 20.113742714420574,
+      "sigma_median": 19.86325077712536,
+      "sigma_p90": 31.216112446784972,
+      "mu_mean": -14.145718914369807,
+      "dist_mean": 12.383913956268215
+    }
+  },
+  "near_vs_far_ratio_mean": 1.628587062756334,
+  "near_vs_far_ratio_median": 1.6870840486823784,
+  "dist_to_teleport_vs_sigma_corr": -0.34885473209761375
+}
