@@ -237,51 +237,51 @@ Figure~\ref{fig:diag1_scatter} shows the pooled scatter.
   \label{fig:diag1_scatter}
 \end{figure}
 
-\paragraph{Tail analysis reveals the true gap.}
+\paragraph{Tail analysis and ranking.}
 The pooled mean bias ($+1.45$ teleport, $+6.64$ large) is an artefact of
 failed-episode truncation flooring both $\hat{V}$ and $G$ near $-100$;
-percentiles of $\hat{V} - G$ (Table~\ref{tab:percentile_bias}) show the
-real signal.
+the real signal is in the percentiles of $\hat{V}-G$
+(Table~\ref{tab:percentile_bias}) and, more importantly for
+Eq.~\eqref{eq:subgoal_select}, in the rank correlation between $\hat V$
+and $G$ (Table~\ref{tab:pearson}).
 
 \begin{table}[h]
-  \centering
-  \caption{Percentiles of bias $\hat{V} - G$.}
-  \label{tab:percentile_bias}
-  \begin{tabular}{llrrrrr}
-    \toprule
-    Env & Subset & $n$ & p50 & p90 & \textbf{p95} & p99 \\
-    \midrule
-    teleport & all  & 70\,892 & $+1.9$ & $+25.5$ & $\mathbf{+39.1}$ & $+51.0$ \\
-    large    & all  & 49\,757 & $+7.5$ & $+19.2$ & $\mathbf{+22.9}$ & $+34.5$ \\
-    \midrule
-    teleport & fail & 55\,000 & $+1.3$ & $+23.8$ & $\mathbf{+39.3}$ & $+52.0$ \\
-    large    & fail & 10\,000 & $+0.2$ & $+7.4$  & $\mathbf{+9.6}$  & $+31.3$ \\
-    \bottomrule
-  \end{tabular}
+\centering
+\begin{minipage}[t]{0.66\linewidth}
+\centering
+\caption{Percentiles of bias $\hat{V} - G$.}
+\label{tab:percentile_bias}
+\small
+\begin{tabular}{llrrrrr}
+  \toprule
+  Env & Subset & $n$ & p50 & p90 & \textbf{p95} & p99 \\
+  \midrule
+  teleport & all  & 70\,892 & $+1.9$ & $+25.5$ & $\mathbf{+39.1}$ & $+51.0$ \\
+  large    & all  & 49\,757 & $+7.5$ & $+19.2$ & $\mathbf{+22.9}$ & $+34.5$ \\
+  \midrule
+  teleport & fail & 55\,000 & $+1.3$ & $+23.8$ & $\mathbf{+39.3}$ & $+52.0$ \\
+  large    & fail & 10\,000 & $+0.2$ & $+7.4$  & $\mathbf{+9.6}$  & $+31.3$ \\
+  \bottomrule
+\end{tabular}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.32\linewidth}
+\centering
+\caption{Pearson $r$ between $\hat{V}$ and $G$.}
+\label{tab:pearson}
+\small
+\begin{tabular}{lcc}
+  \toprule
+   & teleport & large \\
+  \midrule
+  All points   & \textbf{0.36} & \textbf{0.84} \\
+  Success only & 0.86          & 0.91 \\
+  \bottomrule
+\end{tabular}
+\end{minipage}
 \end{table}
 
-The teleport p95 exceeds large by 70\% overall, and by $4\times$ on the
-failed-episode subset---exactly the regime where the agent is struggling
-most.
-
-\paragraph{Ranking collapse.}
-What matters for Eq.~\eqref{eq:subgoal_select} is not bias magnitude but
-whether $\hat{V}$ \emph{ranks} states correctly
-(Table~\ref{tab:pearson}).
-
-\begin{table}[h]
-  \centering
-  \caption{Pearson $r$ between $\hat{V}$ and $G$.}
-  \label{tab:pearson}
-  \begin{tabular}{lcc}
-    \toprule
-     & teleport & large \\
-    \midrule
-    All points    & \textbf{0.36} & \textbf{0.84} \\
-    Success only  & 0.86          & 0.91 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+The teleport p95 exceeds large by 70\% overall and by $4\times$ on failed
+episodes---the regime where the agent struggles most.
 
 The ranking signal collapses from $r = 0.84$ to $r = 0.36$: at
 $r{=}0.36$ subgoal selection is nearly random, consistent with the
