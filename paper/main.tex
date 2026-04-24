@@ -21,6 +21,9 @@
 \setlength{\intextsep}{6pt}
 \setlength{\parskip}{2pt}
 \captionsetup{font=small}
+% Tighten tables: smaller column padding and slightly shorter rows.
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{0.92}
 
 \title{EECS567 Phase 2 Report\\
        \large EX-HIQL: Per-Head Expectile Diversity and Residual-$\sigma$ Scoring
@@ -192,6 +195,7 @@ random teleportation tiles.
            Per-task numbers are for the \texttt{antmaze-teleport} (top) and
            \texttt{antmaze-large} (bottom) environments, seed 0.}
   \label{tab:training_eval}
+  \small
   \begin{tabular}{lcccccc}
     \toprule
     Environment & Task 1 & Task 2 & Task 3 & Task 4 & Task 5 & \textbf{Overall} \\
@@ -353,6 +357,7 @@ Table~\ref{tab:diag2} reports per-task success.
   \caption{Per-task success rate: vanilla vs.\ oracle-subgoal HIQL
            (20 episodes per task).}
   \label{tab:diag2}
+  \small
   \begin{tabular}{llcccccr}
     \toprule
     Env & Policy & Task 1 & Task 2 & Task 3 & Task 4 & Task 5 & \textbf{Mean} \\
@@ -830,7 +835,7 @@ consistent with the per-head expectile-fixed-point argument
            $\sigma$ and $\sigma^\perp$ (their ratio is not, because
            $\sigma^\perp_\text{far}$ is near zero).}
   \label{tab:diag6}
-  \small
+  \footnotesize
   \begin{tabular}{lcccc|cccc}
     \toprule
     & \multicolumn{4}{c}{raw $\sigma$} & \multicolumn{4}{c}{residual $\sigma^\perp$} \\
