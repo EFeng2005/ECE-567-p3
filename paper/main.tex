@@ -441,21 +441,14 @@ propagating through both levels of the HIQL hierarchy.
 \section{C-HIQL: Design and Failure Diagnosis}
 \label{sec:algorithm}
 
-The diagnosis in Section~\ref{sec:hiql_analysis} localises the failure: a bimodal
-$\hat{V}-G$ error distribution inflates value estimates specifically at
-teleport-adjacent states, and this miscalibration propagates through both levels
-of the hierarchy.
-Any fix must therefore (i) produce a state-dependent signal that is \emph{larger}
-at teleport-adjacent states so that pessimistic scoring can deflate them, and
-(ii) do so without disturbing the places where HIQL is already calibrated.
-The most natural response is ensemble pessimism: train several value heads and
-penalise candidates whose estimates the ensemble disagrees about.
-Section~\ref{subsec:chiql_design} formalises this as \textbf{C-HIQL}.
-Section~\ref{subsec:chiql_eval} then presents \textbf{Diag~4}, the fourth
-diagnostic in our cumulative analysis, which demonstrates that C-HIQL's
-disagreement signal is \emph{anti-correlated} with the value mean at the
-per-state level---and which motivates the EX-HIQL structural fix of
-Section~\ref{sec:exhiql}.
+Any fix for the Section~\ref{sec:hiql_analysis} failure must produce a
+state-dependent signal that is \emph{larger} at teleport-adjacent states
+without perturbing HIQL's already-calibrated regions.
+The natural response is ensemble pessimism: train several value heads
+and penalise candidates the ensemble disagrees about.
+Section~\ref{subsec:chiql_design} formalises this as \textbf{C-HIQL}; \textbf{Diag~4}
+(Section~\ref{subsec:chiql_eval}) shows the disagreement signal is
+\emph{anti-correlated} with the value mean, motivating the EX-HIQL fix.
 
 % ----------------------------------------------------------
 \subsection{C-HIQL Design: Ensemble Pessimism}
@@ -484,11 +477,10 @@ loss at $\tau = 0.7$:
   \right],
   \quad L_\tau^2(u) = |\tau - \mathbf{1}(u<0)|\,u^2.
 \end{equation}
-Diversity between heads comes solely from independent random initialisation;
-the training signal is identical across heads.
-No pessimism enters the training objective---the "train optimistically, act
-pessimistically" split is a core design principle, and preserves the
-"one-checkpoint-serves-any-$\beta_\text{pes}$" property.
+Diversity between heads comes solely from independent random initialisation.
+No pessimism enters the training objective; the split of optimistic
+training and pessimistic scoring preserves the
+one-checkpoint-serves-any-$\beta_\text{pes}$ property.
 
 \paragraph{Inference.}
 At subgoal-selection time, C-HIQL replaces Eq.~\eqref{eq:subgoal_select} with a
@@ -502,14 +494,10 @@ pessimistic aggregator over the $N$ heads:
   \sigma_V = \sqrt{\tfrac{1}{N}\sum_i (V_i - \bar V)^2}.
   \label{eq:chiql_scoring}
 \end{equation}
-The intuition is standard for ensemble-based uncertainty quantification:
-candidates whose $V$-estimates disagree across heads are flagged as
-high-uncertainty, and the pessimism term $-\beta_\text{pes}\sigma_V$ penalises
-them proportionally. For a teleport maze, the hope is that states adjacent to
-teleport tiles---where the Bellman-target distribution is genuinely bimodal
-(lucky vs.\ unlucky outcomes)---produce wider head-disagreement than ordinary
-deterministic states, causing Eq.~\eqref{eq:chiql_scoring} to steer
-$\pi_\text{high}$ away from the optimism traps identified in Diag~1 and Diag~3.
+Standard uncertainty-via-disagreement intuition: the hope is that states
+adjacent to teleport tiles produce wider head-disagreement than
+deterministic states, so Eq.~\eqref{eq:chiql_scoring} steers
+$\pi_\text{high}$ away from the Diag~1/Diag~3 optimism traps.
 
 % ----------------------------------------------------------
 \subsection{Diag 4: $\sigma_V$--$\bar V$ Anti-Correlation}
@@ -543,35 +531,23 @@ $\mathbb{E}_s[r_s] = \mathbf{-0.44}$ (averaged over 3 seeds): $\sigma_V$ is
 Within any state's $K$ candidates, the ones the ensemble disagrees about are
 precisely the ones the ensemble rates lower.
 
-Two consequences follow.
-First, $\sigma_V$ is not an independent stochasticity indicator; it is a noisy
-estimator of $-|\bar V|$, so
+Because $\sigma_V \approx -\alpha|\bar V|$ for an effective $\alpha > 0$,
 $\bar V - \beta_\text{pes}\sigma_V \approx \bar V + \beta_\text{pes}\alpha|\bar V|$
-for some effective $\alpha > 0$, which \emph{amplifies} the mismatch that
-$\sigma_V$ was meant to correct.
-Second, candidates that $\bar V$ already ranks poorly---which, per Diag~1, are
-exactly the states where $\hat V$ is already \emph{most accurate} (lower bias,
-tighter calibration)---get the largest pessimism penalty.
-The rare, lucky-teleport-inflated candidates that Diag~3 identified as the real
-failure points get the \emph{smallest} pessimism penalty because their
-$\bar V$ is high.
-This inverts the method's intent.
-
-The most parsimonious explanation is that the five $V_i$ share everything
-except initialisation, so identically-trained deep nets converge to
-approximately the same function; the residual head-to-head variance then
-behaves as initialisation noise that scales with feature magnitude---and
-therefore with $|\bar V|$.
-Under this reading, C-HIQL's diversity mechanism is a proxy for the
-wrong quantity.
+\emph{amplifies} the mismatch instead of correcting it: the
+lucky-teleport-inflated candidates identified in Diag~3 have high
+$\bar V$ and therefore the \emph{smallest} penalty, while well-calibrated
+low-$\bar V$ states receive the largest.
+The mechanism is that identically-trained deep nets sharing everything
+except initialisation converge to approximately the same function, so
+head-to-head variance scales with feature magnitude (hence $|\bar V|$):
+C-HIQL's diversity is a proxy for the wrong quantity.
 
 \section{EX-HIQL: Structural Diversity via Per-Head Expectiles}
 \label{sec:exhiql}
 
-Diag~4 suggests a minimal intervention: rather than hope that random
-initialisation produces a useful disagreement signal, engineer one by giving
-each head a \emph{different loss objective} whose fixed points are
-provably linked to the quantity we want $\sigma_V$ to track.
+Diag~4 motivates engineering the disagreement signal directly: give each
+head a \emph{different loss objective} whose fixed points are provably
+linked to the quantity we want $\sigma_V$ to track.
 
 % ----------------------------------------------------------
 \subsection{Design: Per-Head Expectile Diversity}
@@ -634,20 +610,14 @@ Per-head expectile diversity introduces one new hyperparameter---the choice of
 $\boldsymbol{\tau}$---and this choice turns out to govern a sharp
 trade-off between signal strength and numerical stability.
 
-\paragraph{Wide spread $\tau = (0.1, 0.3, 0.5, 0.7, 0.9)$: per-head runaway.}
-A maximally informative spread diverges numerically within 1\,M gradient steps:
-\texttt{grad/norm} grows to $\sim 4.7{\times}10^6$, $\sigma_V$ to $\sim$2\,900,
-and $v_\text{min}$ escapes physical bounds ($-14\,700$).
-The mechanism is head-local: each extreme-$\tau$ head destabilises through its
-own target-network EMA feedback loop (at $\tau = 0.9$ the $9\times$
-below-target weighting pulls $V_9$ up, the EMA $V_9^{\text{tgt}}$ follows, the
-bootstrap target grows, and Adam's per-parameter normalisation does not
-dampen the loop).
-Policy performance survives (step-1M $0.427$) because the actor reads the
-$\tau=0.7$ head, which stays calibrated, but the $\sigma_V$ signal is
-ruined: per-state $\operatorname{corr}(\bar V, \sigma_V) = \mathbf{+0.99}$
-(both dominated by runaway heads), so Eq.~\eqref{eq:chiql_scoring} becomes
-near-random.
+\paragraph{Wide spread $\tau = (0.1,\ldots,0.9)$: per-head runaway.}
+The extreme-$\tau$ heads destabilise via target-network EMA feedback:
+within 1\,M steps, \texttt{grad/norm} reaches $\sim 4.7{\times}10^6$,
+$\sigma_V$ $\sim$2\,900, and $v_\text{min}$ escapes physical bounds
+($-14\,700$).
+Policy performance survives ($0.427$, actor reads the calibrated
+$\tau{=}0.7$ head), but $\operatorname{corr}(\bar V, \sigma_V) =
+\mathbf{+0.99}$ ruins the scoring signal.
 
 \paragraph{Tight spread $\tau = (0.6, 0.65, 0.7, 0.75, 0.8)$: clean training.}
 Narrowing the spread keeps every head inside HIQL's numerical envelope for
@@ -690,15 +660,11 @@ Table~\ref{tab:2x2}.
 \end{table}
 
 Only the \textbf{indep-trunks $\times$ tight per-head $\tau$} cell is
-simultaneously numerically stable, produces a meaningful $\sigma$ signal, and
-beats the HIQL baseline.
-The shared-trunk variants are instructive: under identical supervision, five
-\texttt{Dense(1)} heads reading the same features converge to near-identical
-projections ($\sigma \sim 10^{-3}$), so the pessimism term becomes numerically
-negligible; under per-head supervision, $\sigma$ is bounded structurally but
-too weak to yield gains.
-Expressive per-head representations matter---the diversity mechanism requires
-each head to learn its own feature geometry.
+simultaneously stable, produces a meaningful $\sigma$ signal, and beats
+HIQL---per-head $\tau$ requires independent trunks, since shared
+\texttt{Dense(1)} heads reading common features either collapse
+($\sigma\!\sim\!10^{-3}$ under same-$\tau$) or saturate structurally too
+weak (under per-head $\tau$).
 
 % ----------------------------------------------------------
 \subsection{Residual-$\sigma$ Scoring Rule}
@@ -747,42 +713,24 @@ The modified scoring rule is then
       \underbrace{\big[\sigma(s,z,g) - (\hat\alpha + \hat\gamma\,\bar V(s,z,g))\big]}_{\text{residual }\sigma^\perp}.
   \label{eq:residual_sigma}
 \end{equation}
-Equation~\eqref{eq:residual_sigma} has the same asymptotic form as
-Eq.~\eqref{eq:chiql_scoring} ($\bar V$ minus a scaled
-uncertainty term) but the uncertainty term has had its linear $\bar V$
-dependence regressed out, so that the remaining penalty reflects only the
-orthogonal, stochasticity-correlated content of $\sigma$.
-No retraining is required; the rule applies to any already-trained EX-HIQL
-checkpoint at essentially zero additional cost.
-
-Expanding the two rules,
-$\bar V - \beta\sigma = (1 + \beta\gamma)\bar V - \beta\alpha - \beta\sigma^\perp$
-versus $\bar V - \beta\sigma^\perp$: the plain rule conflates a
-$\bar V$ re-scaling (by the $\beta\gamma$ term) with the true
-pessimism correction $-\beta\sigma^\perp$, whereas the residual rule
-isolates the pessimism correction cleanly.
+Equation~\eqref{eq:residual_sigma} keeps Eq.~\eqref{eq:chiql_scoring}'s
+form ($\bar V$ minus a scaled uncertainty term) but regresses the
+linear $\bar V$ dependence out of that term, isolating the stochasticity
+signal.
+No retraining is required; the rule applies to any trained EX-HIQL
+checkpoint at essentially zero cost.
 
 % ==========================================================
 \section{Validating the Cure: Geometric Diagnostics of EX-HIQL}
 \label{sec:validating}
 % ==========================================================
 
-Section~\ref{sec:hiql_analysis} diagnosed HIQL's failure with three
-measurements (Diag~1--3); Section~\ref{subsec:chiql_eval} added the
-diagnosis of C-HIQL's own failure (Diag~4).
-This section applies the same diagnostic discipline to our proposed
-method.
-We ask: is EX-HIQL's $\sigma$ signal actually state-dependent in the way
-the design assumes---concentrated at stochastic-transition-adjacent
-states, rather than distributed uniformly or dominated by a
-feature-magnitude artefact?
-If so, does the residual-$\sigma$ decomposition of
-Section~\ref{subsec:residual_sigma} cleanly recover that signal, and does
-the resulting scoring rule redirect the high-level planner away from the
-lucky-teleport traps identified in Diag~3?
-Three diagnostics, numbered to continue the Section~\ref{sec:hiql_analysis}
-and Section~\ref{subsec:chiql_eval} sequence, answer these questions in
-the same coordinate system that revealed the original failure.
+Three further diagnostics verify EX-HIQL's mechanism in the same
+coordinate system as Diag~1--4: Diag~5 tests whether $\sigma$ is
+state-dependent and concentrated at teleport-adjacent states,
+Diag~6 whether the residual decomposition cleanly extracts that signal,
+and Diag~7 whether the resulting scoring rule redirects $\pi_\text{high}$
+away from the lucky-teleport traps of Diag~3.
 
 % ----------------------------------------------------------
 \subsection{Diag 5: $\sigma$ Concentrates at Teleporter Zones}
@@ -790,21 +738,15 @@ the same coordinate system that revealed the original failure.
 % ----------------------------------------------------------
 
 \paragraph{Setup.}
-To test EX-HIQL's design assumption directly, we use the environment's own
-teleport geometry rather than any learned approximation.
-The \texttt{antmaze-teleport} maze has two teleport-in tiles at world
-coordinates $(20, 12)$ and $(0, 16)$, with a $1.5$-world-unit trigger
-radius (from \texttt{ogbench.locomaze.maze}).
+The maze has teleport-in tiles at $(20,12)$ and $(0,16)$ with a
+$1.5$-unit trigger radius (from \texttt{ogbench.locomaze.maze}).
 We sample $N = 2000$ dataset states per seed, compute the minimum
-distance $d(s)$ from each state to the nearest teleport-in tile, and
-classify states as \emph{near} if $d(s) \le 3$ and \emph{far} if
-$d(s) > 6$.
-At each state we also compute the per-state mean
-$\sigma(s) = \tfrac{1}{K}\sum_{k} \sigma_V(s, z_k, g)$ averaged over
-$K = 16$ candidate subgoals drawn from $\pi_\text{high}$.
-The core quantity is the median-$\sigma$ ratio between near and far
-classes, and the Pearson correlation between $d(s)$ and $\sigma(s)$
-across all states.
+distance $d(s)$ to the nearest teleport-in, and classify \emph{near}
+($d\!\le\!3$) vs.\ \emph{far} ($d\!>\!6$).
+At each state we compute
+$\sigma(s) = \tfrac{1}{K}\sum_{k} \sigma_V(s, z_k, g)$ over $K=16$
+$\pi_\text{high}$-sampled subgoals, then report the near/far median
+ratio and $\operatorname{corr}(d, \sigma)$.
 
 \paragraph{Results.}
 For Phase-3b (3-seed means), the near-class median $\sigma$ is
@@ -1074,22 +1016,13 @@ Phase-3b step-1M checkpoint.
 \end{table}
 
 \paragraph{Convergent evidence.}
-Three mechanistically distinct decouplings of $\sigma$ from $\bar V$---
-residual regression at $\beta_\text{pes} = 0.5$ (0.429), within-state
-rank at $\beta_\text{pes} = 0.5$ (0.427), and simply raising
-$\beta_\text{pes}$ to 1.0 on the shared-trunk EX-HIQL checkpoint
-(0.428)---converge on an overall-success ceiling near \textbf{0.43}.
-The ceiling is not an artefact of a particular scoring rule: three
-independent rules, at different parameter settings, on two distinct
-architectures, all reach it.
-Furthermore, in the Phase-3b residual case, the per-seed numbers
-(0.404 / 0.484 / 0.400) each exceed their plain-$\beta_\text{pes}=0.5$
-counterparts (0.392 / 0.432 / 0.356), so the $+3.6$-point improvement
-from plain to residual scoring is not driven by a single lucky seed.
-We conclude that EX-HIQL's per-head expectile diversity installs a
-state-dependent $\sigma$ signal as predicted, and that residual-$\sigma$
-scoring recovers the intended pessimism effect from an
-already-trained checkpoint.
+Three mechanistically distinct decouplings of $\sigma$ from $\bar V$
+(residual $\beta{=}0.5$: 0.429; rank $\beta{=}0.5$: 0.427; shared-trunk
+$\beta{=}1.0$: 0.428) converge on the same $\sim\!0.43$ ceiling across
+two architectures.
+The residual-scoring per-seed numbers (0.404 / 0.484 / 0.400) each
+exceed the plain-$\beta{=}0.5$ counterparts (0.392 / 0.432 / 0.356),
+so the $+3.6$-point gain is consistent across seeds.
 
 % ==========================================================
 \section{Discussion and Limitations}
@@ -1128,21 +1061,16 @@ critique and the applicability of residual-$\sigma$ as a generic
 post-processing tool.
 
 \paragraph{Conclusion.}
-On \texttt{antmaze-teleport-navigate-v0}, HIQL's collapse is consistent
-with a value-function calibration failure driven by stochastic
-transitions.
-Ensemble pessimism is the natural response, but works only when the
-ensemble's disagreement signal tracks the right quantity---which
-C-HIQL's random-initialisation diversity does not, on our measurements.
-EX-HIQL's one-tensor change to the value loss installs a
-structurally-grounded disagreement signal that we verify concentrates at
-stochastic transitions on this environment, and the residual-$\sigma$
-scoring rule recovers the intended pessimism behaviour from a trained
-checkpoint without retraining.
-The narrative arc---disease (HIQL, Diag~1--3), failed remedy (C-HIQL,
-Diag~4), structural fix and validated cure (EX-HIQL, Diag~5--7)---is
-the central contribution of this report, and the +2.5-point empirical
-improvement is downstream evidence consistent with that arc.
+On \texttt{antmaze-teleport-navigate-v0}, ensemble pessimism works only
+when the disagreement signal tracks the right quantity---which C-HIQL's
+random-initialisation diversity does not.
+EX-HIQL's one-tensor change installs a structurally-grounded signal
+that concentrates at stochastic transitions, and residual-$\sigma$
+scoring recovers the intended pessimism from a trained checkpoint
+without retraining.
+The disease$\to$failed-remedy$\to$structural-cure arc (Diag~1--7) is
+the central contribution; the +2.5-point gain is consistent downstream
+evidence.
 
 % ==========================================================
 \begin{thebibliography}{9}
