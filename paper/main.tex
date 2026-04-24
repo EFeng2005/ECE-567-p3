@@ -22,7 +22,9 @@
 \setlength{\parskip}{2pt}
 \captionsetup{font=small}
 
-\title{EECS567 Phase 2 Report}
+\title{EECS567 Phase 2 Report\\
+       \large EX-HIQL: Per-Head Expectile Diversity and Residual-$\sigma$ Scoring
+       for Stochastic Offline Hierarchical GCRL}
 \author{Zhongqi Huang}
 \date{April 2026}
 
@@ -59,11 +61,11 @@ HIQL at $\beta_\text{pes} = 0.5$.
 Our contributions address this failure mode in three steps.
 \begin{enumerate}
   \item \textbf{Mechanism-level diagnosis of C-HIQL's failure.}
-        We provide the first quantitative characterisation of the
-        $\sigma_V$--$\bar V$ anti-correlation in ensemble-based pessimism
-        for offline hierarchical goal-conditioned RL, identifying
-        random-initialisation diversity as a proxy for feature-magnitude
-        noise rather than transition stochasticity
+        We quantify the $\sigma_V$--$\bar V$ anti-correlation in
+        ensemble-based pessimism for offline hierarchical
+        goal-conditioned RL, and argue that random-initialisation
+        diversity behaves as a proxy for feature-magnitude noise rather
+        than transition stochasticity
         (Section~\ref{subsec:chiql_eval}).
   \item \textbf{EX-HIQL: per-head expectile diversity.}
         We replace random-initialisation diversity with per-head expectile
@@ -77,12 +79,13 @@ Our contributions address this failure mode in three steps.
         $\pi_\text{high}$, $\pi_\text{low}$, and dataset pipeline are
         identical to HIQL.
   \item \textbf{Geometric validation and residual-$\sigma$ scoring.}
-        Using the environment's known teleporter geometry, we directly
-        measure that EX-HIQL's $\sigma$ concentrates at teleport-adjacent
+        Using the environment's known teleporter geometry, we measure
+        that EX-HIQL's $\sigma$ concentrates at teleport-adjacent
         states with a 1.66$\times$ near/far median ratio and a $-0.36$
-        distance-to-teleport correlation---the first geometric-level
-        verification of the
-        stochasticity-$\sigma$ correspondence we are aware of
+        distance-to-teleport correlation---a geometric-level
+        verification on \texttt{antmaze-teleport} that, to our
+        knowledge, has not been explicitly reported in prior
+        hierarchical offline-GCRL work
         (Section~\ref{subsec:diag5}).
         Recognising that $\sigma$ retains a $\bar V$-correlated contaminant
         that dilutes the pessimism signal, we propose \emph{residual-$\sigma$
@@ -97,10 +100,16 @@ $\beta_\text{pes}$), EX-HIQL reaches a performance ceiling of $\sim$0.43 on
 \texttt{antmaze-teleport-navigate-v0}, with every decoupling strategy
 individually beating the plain-scoring baseline across all seeds.
 The final configuration---Phase-3b architecture with residual-$\sigma$
-inference scoring at $\beta_\text{pes} = 0.5$---achieves a 3-seed mean
+inference scoring at $\beta_\text{pes} = 0.5$---attains a 3-seed mean
 overall-success of \textbf{0.429} against HIQL's \textbf{0.404}, a
 \textbf{+2.5-point improvement} from a purely inference-time modification
 of a checkpoint trained under the same compute budget as HIQL.
+All claims in this paper are scoped to
+\texttt{antmaze-teleport-navigate-v0}; multi-environment validation is
+deferred to future work (Section~\ref{sec:discussion}).
+Internal naming: ``Phase-3a/3b'' refer to $\tau$-spread choices inside
+EX-HIQL (Section~\ref{subsec:exhiql_stability}) and are orthogonal to
+the course ``Phase 2'' label.
 
 \section{Related Works}
 \label{sec:related}
@@ -156,10 +165,10 @@ values at training time; C-HIQL and EX-HIQL instead take a
 conservatism enters only at subgoal selection), preserving the
 one-checkpoint-serves-any-$\beta_\text{pes}$ property central to our
 scoring-rule ablation (Section~\ref{sec:benchmark}).
-To our knowledge, ensemble-based pessimism for offline hierarchical GCRL
-(as distinct from flat offline RL) and direct geometric-level validation of
-the stochasticity-$\sigma$ correspondence are both unexplored prior to this
-work.
+Within the hierarchical-GCRL literature we have surveyed, ensemble-based
+pessimism (as distinct from flat offline-RL ensembles) and geometric-level
+validation of the stochasticity--$\sigma$ correspondence have not been
+jointly reported, which motivates this paper's scope.
 
 \section{HIQL Analysis}
 \label{sec:hiql_analysis}
@@ -424,9 +433,9 @@ trajectories produce a bimodal $\hat{V} - G$ error distribution
 concentrates subgoals at the inflated teleport exit (Diag~3); and even
 oracle subgoals recover only $+0.07$ because the same miscalibration
 has also corrupted $\pi_\text{low}$'s training distribution (Diag~2).
-The root cause is a \emph{value-function calibration failure} induced
-by stochastic transitions in the offline dataset, which propagates
-through both levels of the HIQL hierarchy.
+The evidence is consistent with a \emph{value-function calibration
+failure} induced by stochastic transitions in the offline dataset,
+propagating through both levels of the HIQL hierarchy.
 
 
 \section{C-HIQL: Design and Failure Diagnosis}
@@ -548,11 +557,13 @@ failure points get the \emph{smallest} pessimism penalty because their
 $\bar V$ is high.
 This inverts the method's intent.
 
-The root cause is that the five $V_i$ share everything except initialisation,
-so identically-trained deep nets converge to approximately the same function
-and the residual head-to-head variance is initialisation noise that scales
-with feature magnitude---and therefore with $|\bar V|$.
-C-HIQL's diversity mechanism is a proxy for the wrong quantity.
+The most parsimonious explanation is that the five $V_i$ share everything
+except initialisation, so identically-trained deep nets converge to
+approximately the same function; the residual head-to-head variance then
+behaves as initialisation noise that scales with feature magnitude---and
+therefore with $|\bar V|$.
+Under this reading, C-HIQL's diversity mechanism is a proxy for the
+wrong quantity.
 
 \section{EX-HIQL: Structural Diversity via Per-Head Expectiles}
 \label{sec:exhiql}
@@ -725,6 +736,9 @@ $(s,z,g)$ tuples from the dataset, compute $\bar V$ and $\sigma$ across the
 $N$ heads at each, and fit the linear regression
 $\hat \alpha, \hat \gamma \in \arg\min \sum_j \big(\sigma_j - (\alpha + \gamma \bar V_j)\big)^2$.
 The fit takes under one second; we do it once per checkpoint.
+Fitted coefficients are stable across $M \in \{500, 2000\}$ and across
+dataset vs.\ rollout-state sampling (third-decimal changes), so the
+regression is not sensitive to the particular state distribution used.
 The modified scoring rule is then
 \begin{equation}
   z^* \;=\;
@@ -829,9 +843,10 @@ flat to be useful at inference
   \end{tabular}
 \end{table}
 
-To our knowledge this is the first direct empirical confirmation in the
-ensemble-pessimism family that head-disagreement concentrates at the
-environment's known stochastic transitions.
+Within the ensemble-pessimism literature we have surveyed, we are not
+aware of a prior report that directly ties head-disagreement
+concentration to an environment's known stochastic-transition geometry
+in this way.
 The shared-trunk contrast clarifies a subtlety: the architecture with the
 \emph{cleaner} mechanism has the \emph{weaker} spatial signal, because
 shared features compress the $\sigma$ magnitude below the noise floor for
@@ -979,9 +994,12 @@ been re-scored away}.
 % ==========================================================
 
 We report primary benchmark numbers on
-\texttt{antmaze-teleport-navigate-v0}: 3 seeds, 1\,M gradient steps per
-trained configuration, 50 evaluation episodes per task across 5 tasks.
-The $\beta_\text{pes}$ column records the inference-time pessimism
+\texttt{antmaze-teleport-navigate-v0}: 3 seeds (000, 001, 002),
+1\,M gradient steps per trained configuration, 50 evaluation episodes
+per task across the 5 default tasks, and the step-1M
+checkpoint used without early-stopping selection.
+The $K = 16$ candidate count at scoring matches HIQL's default; the
+$\beta_\text{pes}$ column records the inference-time pessimism
 coefficient; all training-time hyperparameters are the HIQL defaults
 except for per-head expectile supervision as described in
 Section~\ref{subsec:exhiql_design}.
@@ -1110,21 +1128,22 @@ critique and the applicability of residual-$\sigma$ as a generic
 post-processing tool.
 
 \paragraph{Conclusion.}
-HIQL's collapse on stochastic offline hierarchical GCRL has, at root, a
-value-function calibration failure.
-Ensemble pessimism is the natural response, but only if the
-ensemble's disagreement signal reflects the right quantity---which
-C-HIQL's random-initialisation diversity does not.
+On \texttt{antmaze-teleport-navigate-v0}, HIQL's collapse is consistent
+with a value-function calibration failure driven by stochastic
+transitions.
+Ensemble pessimism is the natural response, but works only when the
+ensemble's disagreement signal tracks the right quantity---which
+C-HIQL's random-initialisation diversity does not, on our measurements.
 EX-HIQL's one-tensor change to the value loss installs a
-structurally-grounded disagreement signal that we directly verify
-concentrates at stochastic transitions, and the residual-$\sigma$
+structurally-grounded disagreement signal that we verify concentrates at
+stochastic transitions on this environment, and the residual-$\sigma$
 scoring rule recovers the intended pessimism behaviour from a trained
 checkpoint without retraining.
 The narrative arc---disease (HIQL, Diag~1--3), failed remedy (C-HIQL,
 Diag~4), structural fix and validated cure (EX-HIQL, Diag~5--7)---is
-the central contribution; the +2.5-point empirical improvement is the
-downstream evidence that the arc is faithful to the mechanism it
-describes.
+the central contribution of this report; the +2.5-point empirical
+improvement is downstream evidence consistent with that arc, and should
+be read in light of the eval-noise caveat above.
 
 % ==========================================================
 \begin{thebibliography}{9}
