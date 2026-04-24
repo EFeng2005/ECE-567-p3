@@ -196,47 +196,21 @@ random teleportation tiles.
   \end{tabular}
 \end{table}
 
-HIQL is a hierarchical offline goal-conditioned RL algorithm.
-Its high-level policy $\pi_\text{high}$ selects a subgoal representation
-$z_\text{sub}$ from the learned goal-representation network $\phi$; the
-low-level policy $\pi_\text{low}$ then produces actions conditioned on
-$(s_t, z_\text{sub})$.
-Crucially, subgoal selection is driven by
+Subgoal selection in HIQL is driven by
 \begin{equation}
   z^* = \arg\max_{z} \hat{V}(s_t, z, g),
   \label{eq:subgoal_select}
 \end{equation}
-where $\hat{V}$ is a shared value function trained with expectile regression
-at $\tau = 0.7$.
-This means the entire planning hierarchy rests on the \emph{ranking quality}
-of $\hat{V}$: if $\hat{V}$ cannot correctly order candidate subgoals by their
-expected return, Eq.~\eqref{eq:subgoal_select} degenerates to an
-uninformative, near-random selection.
-
-To understand \emph{why} this gap exists, we design three targeted
-diagnostics:
-\begin{enumerate}
-  \item \textbf{Value-Function Calibration (Diag~1).}
-        Compare $\hat{V}(s_t, g)$ against the realized Monte-Carlo return
-        $G_t$ at every rollout step.
-        This directly measures whether $\hat{V}$ is systematically
-        over-estimated in the stochastic environment and whether its
-        \emph{ranking} of states is preserved.
-
-  \item \textbf{Oracle Subgoal Ablation (Diag~2).}
-        Bypass $\pi_\text{high}$ entirely and feed $\pi_\text{low}$ the
-        \emph{true} BFS-shortest-path subgoal at each step.
-        If teleport success recovers to the \texttt{large} baseline,
-        the failure is localized to the high-level planner; if recovery is
-        partial, the low-level controller is also impaired.
-
-  \item \textbf{Subgoal Distribution Analysis (Diag~3).}
-        For a fixed $(s, g)$ pair near a teleport tile, sample $\sim$1000
-        subgoals from $\pi_\text{high}$ and visualize their spatial density.
-        We expect the distribution to concentrate near teleport tiles in
-        \texttt{teleport} (chasing lucky shortcuts) but to spread along the
-        true shortest path in \texttt{large}.
-\end{enumerate}
+with $\hat{V}$ a shared expectile-$\tau{=}0.7$ value function.
+The planning hierarchy therefore rests on $\hat{V}$'s \emph{ranking
+quality}: if $\hat{V}$ mis-orders candidate subgoals,
+Eq.~\eqref{eq:subgoal_select} degenerates to near-random selection.
+We locate the failure with three targeted diagnostics: \textbf{Diag~1}
+compares $\hat{V}$ to realised return $G_t$ (calibration and ranking);
+\textbf{Diag~2} replaces $\pi_\text{high}$ with a BFS-oracle (isolates
+high- vs.\ low-level blame); \textbf{Diag~3} visualises the spatial
+density of $\pi_\text{high}$'s subgoal samples (where the high-level
+planner actually points).
 
 % ----------------------------------------------------------
 \subsection{Diag 1: Value-Function Calibration}
@@ -244,17 +218,12 @@ diagnostics:
 % ----------------------------------------------------------
 
 \paragraph{Setup.}
-For each checkpoint (teleport seed~0, large seed~0), we run 5 evaluation
-tasks $\times$ 20 episodes.
-At every step $t$ we record $\hat{V}_t = \hat{V}(s_t, g)$ and the
-realized discounted return
-$G_t = \sum_{k \ge t} \gamma^{k-t} r_k$,
-where $r \in \{-1, 0\}$ is the dataset-convention reward
-($r = 0$ at goal, $-1$ otherwise) and $\gamma = 0.99$.
-This yields 70\,892 and 49\,757 $(s, g)$ pairs for \texttt{teleport} and
-\texttt{large} respectively.
-Figure~\ref{fig:diag1_scatter} shows the pooled $\hat{V}$ vs.\ $G$ scatter
-for both environments.
+For each checkpoint (teleport seed~0, large seed~0) we run 5 tasks
+$\times$ 20 episodes and record $\hat{V}_t$ and the realised return
+$G_t = \sum_{k \ge t} \gamma^{k-t} r_k$ ($r\in\{-1,0\}$, $\gamma = 0.99$),
+yielding 70\,892 / 49\,757 $(s,g)$ pairs for \texttt{teleport} /
+\texttt{large}.
+Figure~\ref{fig:diag1_scatter} shows the pooled scatter.
 
 \begin{figure}[h]
   \centering
@@ -268,18 +237,11 @@ for both environments.
   \label{fig:diag1_scatter}
 \end{figure}
 
-\paragraph{The mean is misleading.}
-The pooled mean bias $\hat{V} - G$ is $+1.45$ for \texttt{teleport} and
-$+6.64$ for \texttt{large}---naively suggesting \texttt{teleport} is
-\emph{less} over-estimated.
-This is an artifact: 75\% of teleport episodes fail, and in failed episodes
-both $\hat{V}$ and $G$ converge to $\approx -100$ (the discounted sum of
-$-1$ over 1000 steps), yielding near-zero bias that overwhelms the signal
-from successful runs.
-
 \paragraph{Tail analysis reveals the true gap.}
-Table~\ref{tab:percentile_bias} reports percentiles of $\hat{V} - G$ for
-all points and for the failed-episode subset.
+The pooled mean bias ($+1.45$ teleport, $+6.64$ large) is an artefact of
+failed-episode truncation flooring both $\hat{V}$ and $G$ near $-100$;
+percentiles of $\hat{V} - G$ (Table~\ref{tab:percentile_bias}) show the
+real signal.
 
 \begin{table}[h]
   \centering
@@ -303,11 +265,9 @@ failed-episode subset---exactly the regime where the agent is struggling
 most.
 
 \paragraph{Ranking collapse.}
-Since $\pi_\text{high}$ selects subgoals via $\arg\max \hat{V}$
-(Eq.~\eqref{eq:subgoal_select}), what matters is not the bias magnitude
-but whether $\hat{V}$ \emph{ranks} states correctly.
-Table~\ref{tab:pearson} shows the Pearson correlation between $\hat{V}$ and
-$G$.
+What matters for Eq.~\eqref{eq:subgoal_select} is not bias magnitude but
+whether $\hat{V}$ \emph{ranks} states correctly
+(Table~\ref{tab:pearson}).
 
 \begin{table}[h]
   \centering
@@ -323,14 +283,12 @@ $G$.
   \end{tabular}
 \end{table}
 
-The ranking signal collapses from $r = 0.84$ to $r = 0.36$ when moving from
-the deterministic to the stochastic environment.
-At $r = 0.36$, subgoal selection is nearly random---consistent with the
-large performance drop observed at training time.
-The per-task breakdown in Figure~\ref{fig:per_task_hist} shows this
-pattern holds across all five tasks: every \texttt{teleport} task has
-$r < 0.61$, with task~1 essentially uncorrelated ($r = 0.19$), while
-four of five \texttt{large} tasks exceed $r = 0.82$.
+The ranking signal collapses from $r = 0.84$ to $r = 0.36$: at
+$r{=}0.36$ subgoal selection is nearly random, consistent with the
+training-time performance drop.
+The pattern holds per-task (Figure~\ref{fig:per_task_hist}): every
+teleport task has $r < 0.61$ (task~1 essentially uncorrelated at
+$r = 0.19$), while four of five large tasks exceed $r = 0.82$.
 
 \begin{figure}[h]
   \centering
@@ -345,8 +303,8 @@ four of five \texttt{large} tasks exceed $r = 0.82$.
 \end{figure}
 
 \paragraph{Bimodal error distribution.}
-Restricting to the first 50 steps of each episode (before truncation-pinned
-dynamics dominate) exposes the distributional source of the problem
+Restricting to the first 50 steps of each episode exposes the
+distributional source of the problem
 (Figure~\ref{fig:early_steps_hist}).
 
 \begin{figure}[h]
@@ -363,15 +321,11 @@ dynamics dominate) exposes the distributional source of the problem
   \label{fig:early_steps_hist}
 \end{figure}
 
-The second mode arises because the offline dataset contains trajectories in
-which a random teleport deposited the agent adjacent to the goal, producing
-high return.
-Expectile regression at $\tau = 0.7$ incorporates these outcomes into
-$\hat{V}$, inflating estimates at states that are only reachable
-cheaply via a rare teleport.
-The result is that at the very start of an episode, the agent believes
-reaching the goal is easy---and subgoal selection reflects that false
-optimism.
+The second mode comes from lucky-teleport trajectories in the offline
+dataset: expectile regression at $\tau = 0.7$ upweights these
+high-return outcomes, inflating $\hat{V}$ at states only reachable
+cheaply via a rare teleport and making the goal look easy from episode
+start.
 
 % ----------------------------------------------------------
 \subsection{Diag 2: Oracle Subgoal Ablation}
@@ -379,18 +333,11 @@ optimism.
 % ----------------------------------------------------------
 
 \paragraph{Setup.}
-To isolate whether the failure originates in $\pi_\text{high}$ or
-$\pi_\text{low}$, we replace $\pi_\text{high}$ with an oracle planner.
-At each step we query the environment's BFS shortest-path oracle for the
-next waypoint $w^*_t$ in XY space, construct a subgoal observation by
-injecting $w^*_t$ into the current observation, and pass it through the
-learned goal-representation network $\phi$ to obtain $z^*_t$.
-The low-level policy $\pi_\text{low}(a \mid s_t, z^*_t)$ then acts
-unchanged.
-
-\paragraph{Results.}
-Table~\ref{tab:diag2} compares per-task success rates under vanilla HIQL
-and oracle-subgoal HIQL.
+We replace $\pi_\text{high}$ with a BFS oracle: at each step we query
+the maze's shortest-path oracle for the next XY waypoint $w^*_t$, inject
+it into the observation, and pass through $\phi$ to obtain $z^*_t$.
+$\pi_\text{low}(a \mid s_t, z^*_t)$ acts unchanged.
+Table~\ref{tab:diag2} reports per-task success.
 
 \begin{table}[h]
   \centering
@@ -413,33 +360,19 @@ and oracle-subgoal HIQL.
 \end{table}
 
 \paragraph{Interpretation.}
-Oracle subgoals yield only modest gains in both environments:
-$+0.07$ in \texttt{teleport} (0.43 $\to$ 0.50) and $+0.03$ in
-\texttt{large} (0.83 $\to$ 0.86).
-
-The \texttt{large} result is largely a ceiling effect---vanilla HIQL
-already performs well, leaving little room for improvement.
-The \texttt{teleport} result is more telling: even with a perfect
-high-level planner, success improves by only 7 points.
-Within \texttt{teleport}, tasks~2 and~4 respond strongly to oracle
-subgoals ($+0.35$ and $+0.30$ respectively), confirming that
-$\pi_\text{high}$ is the primary bottleneck on those tasks.
-By contrast, tasks~1 and~3 show \emph{zero} improvement, and task~5
-\emph{regresses} ($0.65 \to 0.35$), indicating that $\pi_\text{low}$
-itself is impaired on the harder teleport configurations regardless of
-how good the subgoal is.
-
-This points to a deeper, two-level failure mechanism: the miscalibrated
-$\hat{V}$ corrupts training signals for \emph{both} layers of the
-hierarchy simultaneously.
-$\pi_\text{high}$ receives biased value targets and learns to nominate
-overestimated, teleport-adjacent subgoals;
-$\pi_\text{low}$ is trained on a distribution that includes many
-transitions where the promised subgoal was unreachable under normal
-dynamics, degrading its ability to track subgoals reliably even when they
-are correct.
-Fixing only the high-level planner (as the oracle ablation does) therefore
-recovers only part of the lost performance.
+Oracle subgoals yield only $+0.07$ on teleport (0.43$\to$0.50) and
+$+0.03$ on large (0.83$\to$0.86, a ceiling effect).
+Even a perfect high-level planner recovers only 7 points on teleport.
+Within teleport, tasks~2 and~4 respond strongly ($+0.35$, $+0.30$)
+while tasks~1 and~3 show zero gain and task~5 \emph{regresses}
+($0.65\to 0.35$)---$\pi_\text{low}$ is itself impaired on the harder
+configurations.
+The miscalibrated $\hat{V}$ therefore corrupts \emph{both} layers
+simultaneously: $\pi_\text{high}$ nominates overestimated
+teleport-adjacent subgoals, and $\pi_\text{low}$'s AWR-weighted training
+distribution over-samples transitions whose promised subgoal is
+unreachable under normal dynamics. Fixing only the planner thus
+recovers only part of the gap.
 
 % ----------------------------------------------------------
 \subsection{Diag 3: Subgoal Distribution Analysis}
@@ -447,16 +380,12 @@ recovers only part of the lost performance.
 % ----------------------------------------------------------
 
 \paragraph{Setup.}
-To directly visualize where $\pi_\text{high}$ places subgoals, we fix a
-single $(s, g)$ pair (task~1: agent at the start position, goal at the
-opposite corner) and sample $N = 1000$ subgoal representations from
-$\pi_\text{high}(\cdot \mid s, g)$.
-Each sampled representation $z$ is decoded back to XY maze coordinates via
-nearest-neighbour lookup in the dataset: we find the dataset observation
-whose goal-representation embedding $\phi([o; o])$ is most similar to $z$
-(by dot product) and take its XY position.
-The resulting point cloud is visualized as a KDE density overlay on the
-maze map for both environments (Figure~\ref{fig:diag3_density}).
+For a fixed task-1 $(s,g)$ pair we sample $N = 1000$ subgoal
+representations from $\pi_\text{high}(\cdot \mid s, g)$ and decode each
+back to XY via nearest-neighbour lookup on $\phi([o;o])$ dataset
+embeddings (dot-product similarity).
+Figure~\ref{fig:diag3_density} overlays the resulting KDE on the maze
+for both environments.
 
 \begin{figure}[h]
   \centering
@@ -478,43 +407,26 @@ maze map for both environments (Figure~\ref{fig:diag3_density}).
 
 \paragraph{Results.}
 The contrast is stark.
-In \texttt{large}, $\pi_\text{high}$ produces a diffuse, multi-modal
-distribution that covers the upper portion of the maze---the region the
-agent must traverse to reach the goal.
-In \texttt{teleport}, almost all 1000 sampled subgoals collapse onto the
-teleport-out tile, even though this tile is not on the shortest path to
-the goal and the agent's actual position is far from the teleport entrance.
-
-This directly confirms the mechanism identified in Diag~1: expectile
-regression has inflated $\hat{V}$ at teleport-adjacent states (the
-second mode at $+40$--$+50$ in Figure~\ref{fig:early_steps_hist}), and
-$\pi_\text{high}$ has learned to exploit this by routing nearly every
-subgoal through the teleport shortcut.
-The high-level planner is not planning---it is pattern-matching to the
-highest-$\hat{V}$ state in its learned landscape, which happens to be the
-teleport exit.
+On \texttt{large}, $\pi_\text{high}$ produces a diffuse multi-modal
+density covering the upper maze---the region the agent must traverse.
+On \texttt{teleport}, almost all 1000 samples collapse onto the
+teleport-out tile, despite it lying off the shortest path and far from
+the agent.
+This directly confirms Diag~1's mechanism: the lucky-teleport mode of
+$\hat{V}$ (Figure~\ref{fig:early_steps_hist}) drives $\pi_\text{high}$
+to pattern-match the highest-$\hat{V}$ state---the teleport exit---rather
+than plan toward the goal.
 
 \paragraph{Closing the causal chain.}
-The three diagnostics together establish a complete mechanism:
-\begin{enumerate}
-  \item \textbf{(Diag~1)} Lucky-teleport trajectories in the offline dataset
-        cause expectile regression to produce a bimodal $\hat{V} - G$ error
-        distribution, with a second mode at $+40$--$+50$ concentrated at
-        teleport-adjacent states. The ranking correlation drops from
-        $r = 0.84$ (\texttt{large}) to $r = 0.36$ (\texttt{teleport}).
-  \item \textbf{(Diag~3)} $\pi_\text{high}$ responds to this inflated
-        $\hat{V}$ landscape by concentrating subgoal proposals at the
-        teleport-out tile, regardless of the true goal direction.
-  \item \textbf{(Diag~2)} Even replacing $\pi_\text{high}$ with an oracle
-        planner recovers only $+0.07$ success, because the
-        miscalibrated $\hat{V}$ has also degraded $\pi_\text{low}$'s
-        training distribution---tasks~1, 3, and~5 show zero or negative
-        improvement under oracle subgoals.
-\end{enumerate}
-The root cause is therefore not a planning failure per se, but a
-\emph{value-function calibration failure} induced by stochastic transitions
-in the offline dataset, which propagates through both levels of the HIQL
-hierarchy.
+The three diagnostics establish a complete mechanism: lucky-teleport
+trajectories produce a bimodal $\hat{V} - G$ error distribution
+(Diag~1, collapsing $r$ from $0.84$ to $0.36$); $\pi_\text{high}$
+concentrates subgoals at the inflated teleport exit (Diag~3); and even
+oracle subgoals recover only $+0.07$ because the same miscalibration
+has also corrupted $\pi_\text{low}$'s training distribution (Diag~2).
+The root cause is a \emph{value-function calibration failure} induced
+by stochastic transitions in the offline dataset, which propagates
+through both levels of the HIQL hierarchy.
 
 
 \section{C-HIQL: Design and Failure Diagnosis}
