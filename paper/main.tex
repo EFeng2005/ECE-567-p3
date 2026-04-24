@@ -1,99 +1,58 @@
 \documentclass[11pt]{article}
-
-% ACL style (change [review] -> [final] for camera-ready, or omit for final)
-\usepackage[review]{acl}
-
-% Standard ACL-recommended packages
-\usepackage{times}
-\usepackage{latexsym}
-\usepackage[T1]{fontenc}
-\usepackage[utf8]{inputenc}
-\usepackage{microtype}
-\usepackage{inconsolata}
-
-% Math and table packages
+\usepackage[margin=0.85in]{geometry}
 \usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{graphicx}
+\usepackage{titlesec}
+\usepackage{caption}
 
-\title{EX-HIQL: Per-Head Expectile Diversity and Residual-$\sigma$ Scoring
-       for Offline Hierarchical Goal-Conditioned RL on Stochastic Environments}
+% Tighten vertical spacing throughout the document so the narrative fits
+% within the 10-page limit.
+\titlespacing*{\section}{0pt}{8pt plus 2pt minus 2pt}{4pt plus 1pt minus 1pt}
+\titlespacing*{\subsection}{0pt}{6pt plus 2pt minus 2pt}{2pt plus 1pt minus 1pt}
+\titlespacing*{\paragraph}{0pt}{4pt plus 1pt minus 1pt}{6pt}
+\setlength{\abovecaptionskip}{3pt}
+\setlength{\belowcaptionskip}{3pt}
+\setlength{\floatsep}{6pt}
+\setlength{\textfloatsep}{7pt}
+\setlength{\intextsep}{6pt}
+\setlength{\parskip}{2pt}
+\captionsetup{font=small}
 
-\author{Zhongqi Huang \\
-  University of Michigan \\
-  EECS 567 Phase 2 Report \\
-  \texttt{zqhuang@umich.edu} \\}
+\title{EECS567 Phase 2 Report}
+\author{Zhongqi Huang}
+\date{April 2026}
 
 \begin{document}
-\maketitle
 
-\begin{abstract}
-HIQL is the state-of-the-art hierarchical offline goal-conditioned RL
-method but collapses by roughly 40 points on stochastic variants of
-AntMaze in which random teleport tiles introduce bimodal return
-distributions.
-We diagnose the cause in three diagnostics (value-function calibration,
-oracle-subgoal ablation, and subgoal-density visualisation) and show
-the natural remedy---C-HIQL-style ensemble pessimism---in fact
-underperforms HIQL because its random-initialisation disagreement
-signal $\sigma_V$ is strongly anti-correlated with the value mean
-$\bar V$ ($r_s = -0.44$), inverting the pessimism's intent.
-We introduce \textbf{EX-HIQL}, which replaces random-initialisation
-diversity with per-head expectile diversity: the $N$ value heads are
-trained with distinct expectiles $\tau_i$, guaranteeing $\sigma_V \to 0$
-at deterministic transitions and $\sigma_V > 0$ at stochastic ones.
-Using the environment's known teleporter geometry, we directly verify
-that EX-HIQL's $\sigma$ concentrates at teleport-adjacent states (near/far
-ratio $1.66\times$, distance-$\sigma$ correlation $-0.36$)---the first
-geometric confirmation of the stochasticity--$\sigma$ correspondence we
-are aware of.
-A complementary \emph{residual-$\sigma$ scoring rule} fits $\sigma
-\approx \hat\alpha + \hat\gamma\,\bar V$ at inference and scores
-candidates using the orthogonal residual $\sigma^\perp$, amplifying
-the teleporter signal to a $-0.38$ correlation while driving
-$\sigma^\perp \to 0$ at deterministic regions.
-On \texttt{antmaze-teleport-navigate-v0}, the final configuration
-improves 3-seed mean success from HIQL's $0.404$ to $0.429$ ($+2.5$
-points), with all three seeds individually exceeding baseline and
-three mechanistically-distinct decoupling strategies converging on
-the same ceiling.
-\end{abstract}
+\maketitle
 
 \section{Introduction}
 \label{sec:intro}
 
-Hierarchical offline goal-conditioned reinforcement learning provides a
-powerful framework for long-horizon decision-making from static datasets,
-and HIQL~\citep{park2023hiql} is the current state-of-the-art method in
-this family.
-Our Phase-1 diagnosis (Section~\ref{sec:hiql_analysis}) documents a sharp
+HIQL~\citep{park2023hiql} is the current state-of-the-art method for
+hierarchical offline goal-conditioned reinforcement learning, but our
+Phase-1 diagnosis (Section~\ref{sec:hiql_analysis}) documents a sharp
 failure mode: on \texttt{antmaze-teleport-navigate-v0}---the stochastic
-variant of \texttt{antmaze-large} with random teleportation tiles---HIQL's
-success rate drops from 83--91\% to 42--52\%, a roughly 40-point
-performance gap attributable solely to the introduction of stochastic
-transitions.
+variant of \texttt{antmaze-large}---HIQL's success rate drops from 83--91\%
+to 42--52\%, a 40-point gap attributable solely to random teleportation
+tiles.
 Three diagnostics pinpoint the cause: expectile regression at $\tau = 0.7$
-inflates the learned value $\hat V$ at teleport-adjacent states, and
-$\pi_\text{high}$ exploits this inflation by concentrating subgoal proposals
-at the teleport-out tile rather than along the true shortest path.
-The miscalibration propagates through both levels of the hierarchy; even
-an oracle replacement for $\pi_\text{high}$ recovers only 7 points of the
-lost performance.
+inflates $\hat V$ at teleport-adjacent states, $\pi_\text{high}$
+concentrates subgoal proposals on the teleport-out tile, and an oracle
+replacement for $\pi_\text{high}$ recovers only 7 points because the
+miscalibrated $\hat V$ has corrupted both levels of the hierarchy.
 
-An intuitive remedy is to apply ensemble pessimism at the inference-time
-subgoal-scoring step: train $N$ value heads and score candidates by
-$\bar V - \beta_\text{pes}\sigma_V$, where $\sigma_V$ is the ensemble
-disagreement.
+An intuitive remedy is ensemble pessimism at the inference-time scoring
+step: train $N$ value heads and score candidates by
+$\bar V - \beta_\text{pes}\sigma_V$.
 This is the C-HIQL approach.
-We show, however, that C-HIQL's random-initialisation diversity produces a
-$\sigma_V$ signal that is strongly anti-correlated with $\bar V$ at the
-per-state level (Pearson $r_s = -0.44$), inverting the method's intent:
-candidates the ensemble disagrees about are precisely the candidates it
-already ranks poorly, so the pessimism penalty amplifies rather than
-corrects the overestimation identified in Section~\ref{sec:hiql_analysis}.
-Empirically, C-HIQL at $\beta_\text{pes} = 0.5$ scores below the HIQL
-baseline.
+We show that C-HIQL's random-initialisation diversity produces a
+$\sigma_V$ signal strongly anti-correlated with $\bar V$ at the per-state
+level (Pearson $r_s = -0.44$), so the pessimism penalty amplifies rather
+than corrects the overestimation---C-HIQL scores $2$ points \emph{below}
+HIQL at $\beta_\text{pes} = 0.5$.
 
 Our contributions address this failure mode in three steps.
 \begin{enumerate}
@@ -189,21 +148,16 @@ than a full distributional parameterisation---tuned for numerical
 stability under the goal-conditioned setting
 (Section~\ref{subsec:exhiql_stability}).
 
-\paragraph{Loss-level conservatism.}
 CQL~\citep{kumar2020cql} regularises Q-learning by pushing down OOD-action
-values at training time.
-C-HIQL and EX-HIQL take the complementary \emph{scoring-level} approach:
-the training target remains optimistic, and conservatism enters only at
-subgoal-selection time.
-This preserves the "one-checkpoint-serves-any-$\beta_\text{pes}$" property:
-a single trained model evaluates at any inference-time pessimism level
-without retraining, which is essential for the scoring-rule ablation in
-Section~\ref{subsec:results}.
-
-To our knowledge, ensemble-based pessimism for offline
-\emph{hierarchical} GCRL (as distinct from flat offline RL), and direct
-geometric-level validation of the stochasticity-$\sigma$ correspondence,
-are both unexplored prior to this work.
+values at training time; C-HIQL and EX-HIQL instead take a
+\emph{scoring-level} approach (the training target stays optimistic,
+conservatism enters only at subgoal selection), preserving the
+one-checkpoint-serves-any-$\beta_\text{pes}$ property central to our
+scoring-rule ablation (Section~\ref{sec:benchmark}).
+To our knowledge, ensemble-based pessimism for offline hierarchical GCRL
+(as distinct from flat offline RL) and direct geometric-level validation of
+the stochasticity-$\sigma$ correspondence are both unexplored prior to this
+work.
 
 \section{HIQL Analysis}
 \label{sec:hiql_analysis}
@@ -221,7 +175,7 @@ The same algorithm, the same hyperparameters, and the same number of gradient
 steps yield a $\sim$40-point performance gap solely due to the presence of
 random teleportation tiles.
 
-\begin{table*}[t]
+\begin{table}[h]
   \centering
   \caption{HIQL training-eval success rate at 1\,M gradient steps.
            Per-task numbers are for the \texttt{antmaze-teleport} (top) and
@@ -238,7 +192,7 @@ random teleportation tiles.
     large (s1)    & \multicolumn{5}{c}{---} & \textbf{0.83} \\
     \bottomrule
   \end{tabular}
-\end{table*}
+\end{table}
 
 HIQL is a hierarchical offline goal-conditioned RL algorithm.
 Its high-level policy $\pi_\text{high}$ selects a subgoal representation
@@ -300,7 +254,7 @@ This yields 70\,892 and 49\,757 $(s, g)$ pairs for \texttt{teleport} and
 Figure~\ref{fig:diag1_scatter} shows the pooled $\hat{V}$ vs.\ $G$ scatter
 for both environments.
 
-\begin{figure*}[t]
+\begin{figure}[h]
   \centering
   \includegraphics[width=0.85\linewidth]{diag1_scatter.png}
   \caption{Pooled scatter of $\hat{V}(s_t, g)$ vs.\ realized return $G_t$
@@ -310,7 +264,7 @@ for both environments.
            \texttt{teleport} (right) is substantially more diffuse, with a
            long upward tail of highly over-estimated states.}
   \label{fig:diag1_scatter}
-\end{figure*}
+\end{figure}
 
 \paragraph{The mean is misleading.}
 The pooled mean bias $\hat{V} - G$ is $+1.45$ for \texttt{teleport} and
@@ -325,7 +279,7 @@ from successful runs.
 Table~\ref{tab:percentile_bias} reports percentiles of $\hat{V} - G$ for
 all points and for the failed-episode subset.
 
-\begin{table*}[t]
+\begin{table}[h]
   \centering
   \caption{Percentiles of bias $\hat{V} - G$.}
   \label{tab:percentile_bias}
@@ -340,7 +294,7 @@ all points and for the failed-episode subset.
     large    & fail & 10\,000 & $+0.2$ & $+7.4$  & $\mathbf{+9.6}$  & $+31.3$ \\
     \bottomrule
   \end{tabular}
-\end{table*}
+\end{table}
 
 The teleport p95 exceeds large by 70\% overall, and by $4\times$ on the
 failed-episode subset---exactly the regime where the agent is struggling
@@ -376,7 +330,7 @@ pattern holds across all five tasks: every \texttt{teleport} task has
 $r < 0.61$, with task~1 essentially uncorrelated ($r = 0.19$), while
 four of five \texttt{large} tasks exceed $r = 0.82$.
 
-\begin{figure*}[t]
+\begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{diag1b_per_task_hist.png}
   \caption{Per-task bias distributions ($\hat{V} - G$) for
@@ -386,7 +340,7 @@ four of five \texttt{large} tasks exceed $r = 0.82$.
            and higher p95 values; tasks with lower success rates
            (e.g., task~1 at 22\%) exhibit the most extreme overestimation.}
   \label{fig:per_task_hist}
-\end{figure*}
+\end{figure}
 
 \paragraph{Bimodal error distribution.}
 Restricting to the first 50 steps of each episode (before truncation-pinned
@@ -436,7 +390,7 @@ unchanged.
 Table~\ref{tab:diag2} compares per-task success rates under vanilla HIQL
 and oracle-subgoal HIQL.
 
-\begin{table*}[t]
+\begin{table}[h]
   \centering
   \caption{Per-task success rate: vanilla vs.\ oracle-subgoal HIQL
            (20 episodes per task).}
@@ -454,7 +408,7 @@ and oracle-subgoal HIQL.
       & oracle  & 0.70 & \textbf{0.95} & \textbf{1.00} & 0.90 & 0.75 & \textbf{0.86} \\
     \bottomrule
   \end{tabular}
-\end{table*}
+\end{table}
 
 \paragraph{Interpretation.}
 Oracle subgoals yield only modest gains in both environments:
@@ -502,7 +456,7 @@ whose goal-representation embedding $\phi([o; o])$ is most similar to $z$
 The resulting point cloud is visualized as a KDE density overlay on the
 maze map for both environments (Figure~\ref{fig:diag3_density}).
 
-\begin{figure*}[t]
+\begin{figure}[h]
   \centering
   \includegraphics[width=\linewidth]{subgoal_density_comparison.png}
   \caption{Subgoal density from $\pi_\text{high}$ for a fixed $(s, g)$ pair
@@ -518,7 +472,7 @@ maze map for both environments (Figure~\ref{fig:diag3_density}).
            modes along the top of the maze, broadly covering the
            direction of the goal.}
   \label{fig:diag3_density}
-\end{figure*}
+\end{figure}
 
 \paragraph{Results.}
 The contrast is stark.
@@ -680,16 +634,10 @@ failure points get the \emph{smallest} pessimism penalty because their
 $\bar V$ is high.
 This inverts the method's intent.
 
-\paragraph{Root cause.}
-The five $V_i$ share everything except initialisation and are then trained on
-an identical expectile loss.
-Given sufficient data and capacity, identically-trained deep nets converge to
-approximately the same function; the residual head-to-head variance reflects
-leftover initialisation noise propagated through training.
-Empirically this residual variance tends to scale with the magnitude of the
-learned features (deep networks amplify noise along their largest-activation
-directions), and for goal-conditioned $V$ the largest-activation directions
-correlate with $|\bar V|$---yielding the anti-correlation we measure.
+The root cause is that the five $V_i$ share everything except initialisation,
+so identically-trained deep nets converge to approximately the same function
+and the residual head-to-head variance is initialisation noise that scales
+with feature magnitude---and therefore with $|\bar V|$.
 C-HIQL's diversity mechanism is a proxy for the wrong quantity.
 
 \section{EX-HIQL: Structural Diversity via Per-Head Expectiles}
@@ -744,27 +692,13 @@ In implementation terms the change is a single line: the scalar
 $\tau = 0.7$ becomes a vector broadcast across the head axis.
 
 \paragraph{Actor indexing.}
-In HIQL the high- and low-level actors both consume $\hat V$ via advantage-weighted
-regression, where the advantage is $\hat V(s',g) - \hat V(s,g)$ for the low
-actor and $\hat V(s_{t+k}, g) - \hat V(s_t, g)$ for the high actor.
-Under EX-HIQL, $\hat V$ is a length-$N$ vector of different expectiles;
-averaging across heads would give the actors a \emph{mixture} of expectile
-targets that is no longer the advantage of any single $\tau$.
-To preserve HIQL's training dynamics identically, we pin each actor's
-advantage to a designated head index $\text{idx}_\text{low},
-\text{idx}_\text{high}$:
-\begin{equation}
-  A^\text{low} = V_{\text{idx}_\text{low}}(s',g) - V_{\text{idx}_\text{low}}(s,g),
-  \quad
-  A^\text{high} = V_{\text{idx}_\text{high}}(s_{t+k},g) - V_{\text{idx}_\text{high}}(s_t,g).
-\end{equation}
-Our default, \textbf{Design~A}, sets both indices to the head with
-$\tau = 0.7$---HIQL's original expectile---so that training dynamics are
-\emph{bit-identical} to HIQL and only the inference-time scoring rule differs.
-The alternative \textbf{Design~B} lowers the high-actor index to the
-$\tau = 0.5$ head to de-bias the high actor's advantage against the
-teleport-optimism failure mode identified in Diag~3; experiments in this
-paper use Design~A throughout.
+Because $\hat V$ is now a length-$N$ vector, averaging across heads would give
+the actors a mixture of expectile targets.
+We instead pin each actor's AWR advantage to a single designated head index
+(Design~A: both indices are the $\tau = 0.7$ head, making training dynamics
+bit-identical to HIQL and confining the EX-HIQL change to the inference-time
+scoring rule). An alternative Design~B pointing the high actor to the
+$\tau=0.5$ head is available but not used in these experiments.
 
 % ----------------------------------------------------------
 \subsection{Training Stability: the $\tau$-Spread Trade-off}
@@ -776,47 +710,29 @@ $\boldsymbol{\tau}$---and this choice turns out to govern a sharp
 trade-off between signal strength and numerical stability.
 
 \paragraph{Wide spread $\tau = (0.1, 0.3, 0.5, 0.7, 0.9)$: per-head runaway.}
-The natural first choice is a maximally informative spread covering the full
-expectile range.
-Empirically, this configuration diverges numerically within 1\,M gradient
-steps: \texttt{grad/norm} grows from $\sim$1\,600 to $\sim 4.7 \times 10^6$,
-$\sigma_V$ across heads grows from $\sim$1 to $\sim$2\,900, and $v_\text{min}$
-escapes physical bounds ($-14\,700$ against a reachability floor of $\approx -500$).
-The mechanism is head-local rather than ensemble-wide: each extreme-$\tau$ head
-destabilises independently through its own target-network EMA feedback loop.
-At $\tau = 0.9$, the expectile loss puts $9\times$ weight on samples where the
-current prediction is below the bootstrap target.
-Because that target is itself an EMA of the same head
-($V_9^{\text{tgt}}$ tracks $V_9$ with $\tau_\text{EMA} = 0.005$), the
-relation $\Delta V_9 \uparrow \Rightarrow \Delta V_9^{\text{tgt}} \uparrow$
-creates a positive feedback loop that Adam's per-parameter normalisation
-fails to dampen.
-Policy performance is nevertheless not catastrophic (step-1M
-overall-success 0.427), because the actor reads head~3 at $\tau = 0.7$,
-which is sufficiently far from the asymmetry region to remain
-approximately calibrated and because the five MLPs share no parameters.
-What breaks is the $\sigma_V$ signal: per-state
-$\operatorname{corr}(\bar V, \sigma_V)$ measures $\mathbf{+0.99}$ in this
-regime---both $\bar V$ and $\sigma_V$ are dominated by the two runaway
-heads, so Eq.~\eqref{eq:chiql_scoring} reduces to near-random scoring
-over the candidate set.
+A maximally informative spread diverges numerically within 1\,M gradient steps:
+\texttt{grad/norm} grows to $\sim 4.7{\times}10^6$, $\sigma_V$ to $\sim$2\,900,
+and $v_\text{min}$ escapes physical bounds ($-14\,700$).
+The mechanism is head-local: each extreme-$\tau$ head destabilises through its
+own target-network EMA feedback loop (at $\tau = 0.9$ the $9\times$
+below-target weighting pulls $V_9$ up, the EMA $V_9^{\text{tgt}}$ follows, the
+bootstrap target grows, and Adam's per-parameter normalisation does not
+dampen the loop).
+Policy performance survives (step-1M $0.427$) because the actor reads the
+$\tau=0.7$ head, which stays calibrated, but the $\sigma_V$ signal is
+ruined: per-state $\operatorname{corr}(\bar V, \sigma_V) = \mathbf{+0.99}$
+(both dominated by runaway heads), so Eq.~\eqref{eq:chiql_scoring} becomes
+near-random.
 
 \paragraph{Tight spread $\tau = (0.6, 0.65, 0.7, 0.75, 0.8)$: clean training.}
-Narrowing the spread to a tight band around HIQL's natural $\tau = 0.7$ keeps
-every head within the "moderate-asymmetry" regime where the per-head
-feedback loop cannot engage.
-Over 1\,M gradient steps, three independent seeds all stay within HIQL's
-numerical envelope: \texttt{grad/norm} stays in $[280, 650]$;
-$\sigma_V$ across heads drifts slowly from $\sim$4 at step~40k to $\sim$17 at
-step~800k (`$\sigma$-creep'), but never explodes; $v_\text{max}/v_\text{min}$
-remain inside the reachability range.
-Per-state $\operatorname{corr}(\bar V, \sigma_V)$ moves back to
-$\mathbf{-0.41\text{ to }-0.64}$ across seeds---still anti-correlated, but the
-magnitude is weaker than C-HIQL's $-0.44$ and the signal contains a
-genuine state-dependent component we validate in
-Section~\ref{subsec:sigma_validation}.
-This is the configuration we carry forward, which we refer to as
-\textbf{Phase-3b}.
+Narrowing the spread keeps every head inside HIQL's numerical envelope for
+the full 1\,M steps: \texttt{grad/norm} stays in $[280, 650]$; $\sigma_V$
+drifts slowly $4 \to 17$ (`$\sigma$-creep'); $v$ stays inside the reachability
+range.
+Per-state $\operatorname{corr}(\bar V, \sigma_V) = \mathbf{-0.41\text{ to }-0.64}$
+across seeds---still anti-correlated, but now with a state-dependent component
+we validate in Section~\ref{subsec:diag5}.
+We call this \textbf{Phase-3b} and carry it forward.
 
 \paragraph{Architecture ablation: a $2 \times 2$ design matrix.}
 Orthogonal to the $\tau$-spread choice is the ensemble architecture.
@@ -828,7 +744,7 @@ Cross-producted with the supervision choice (same $\tau$ vs.\ per-head
 $\tau$), this yields a $2 \times 2$ matrix whose outcomes we summarise in
 Table~\ref{tab:2x2}.
 
-\begin{table*}[t]
+\begin{table}[h]
   \centering
   \caption{$2{\times}2$ ablation: architecture $\times$ supervision on
            \texttt{antmaze-teleport-navigate-v0}, 3 seeds, step~1\,M.
@@ -846,36 +762,31 @@ Table~\ref{tab:2x2}.
     Shared trunk & tight ($0.6..0.8$) & 0.405 & $\sim$4.3 (flat) & $-0.81$ & Signal bounded but too weak \\
     \bottomrule
   \end{tabular}
-\end{table*}
+\end{table}
 
 Only the \textbf{indep-trunks $\times$ tight per-head $\tau$} cell is
-simultaneously (i)~numerically stable, (ii)~produces a $\sigma$ signal that is
-quantitatively meaningful (not collapsed, not exploded), and (iii)~beats the
-HIQL baseline of 0.404.
-The shared-trunk variants are instructive: under identical supervision
-(same $\tau$), five \texttt{Dense(1)} heads reading the same features converge
-to near-identical projections ($\sigma \sim 0.002$), so the pessimism term
-$\beta_\text{pes}\sigma \sim 10^{-3}$ becomes numerically negligible regardless
-of $\beta_\text{pes}$; under per-head supervision, $\sigma$ is bounded
-structurally ($\tau$-driven differences in \texttt{Dense(1)} projections can
-only span so far on shared features) but the resulting signal is too weak to
-yield gains.
-This is consistent with the intuition that expressive per-head
-representations matter: the diversity mechanism requires each head to
-learn its own feature geometry.
+simultaneously numerically stable, produces a meaningful $\sigma$ signal, and
+beats the HIQL baseline.
+The shared-trunk variants are instructive: under identical supervision, five
+\texttt{Dense(1)} heads reading the same features converge to near-identical
+projections ($\sigma \sim 10^{-3}$), so the pessimism term becomes numerically
+negligible; under per-head supervision, $\sigma$ is bounded structurally but
+too weak to yield gains.
+Expressive per-head representations matter---the diversity mechanism requires
+each head to learn its own feature geometry.
 
 % ----------------------------------------------------------
 \subsection{Residual-$\sigma$ Scoring Rule}
 \label{subsec:residual_sigma}
 % ----------------------------------------------------------
 
-Phase-3b achieves $\operatorname{corr}(\bar V,\sigma) \approx -0.5$---smaller in
-magnitude than C-HIQL's $-0.44$ but still a significant anti-correlation, which
-means the pessimism term in Eq.~\eqref{eq:chiql_scoring} continues to partially
-penalise low-$\bar V$ candidates rather than high-stochasticity ones.
-The question is whether the anti-correlation exhausts $\sigma$'s content, or
-whether there is an orthogonal, stochasticity-specific component beneath it
-that a suitable scoring rule can extract.
+Phase-3b's $\operatorname{corr}(\bar V,\sigma) \approx -0.5$ is still a
+substantial anti-correlation, so Eq.~\eqref{eq:chiql_scoring} continues to
+partially penalise low-$\bar V$ candidates rather than high-stochasticity
+ones.
+The question is whether there is an orthogonal, stochasticity-specific
+component of $\sigma$ beneath the anti-correlated bulk that a suitable
+scoring rule can extract.
 
 \paragraph{Two-component decomposition of $\sigma$.}
 We hypothesise
@@ -889,7 +800,7 @@ second is the residual component orthogonal to $\bar V$ in the least-squares
 sense.
 If $\sigma^\perp$ is (near-)zero at deterministic states and positive at
 teleport-adjacent states as EX-HIQL's mechanism argument predicts (this
-is empirically validated in Section~\ref{subsec:sigma_validation}), then a
+is empirically validated in Section~\ref{subsec:diag6}), then a
 scoring rule that replaces $\sigma$ with $\sigma^\perp$ should recover the
 method's designed behaviour even though $\sigma$ itself is contaminated by the
 anti-correlated bulk.
@@ -916,25 +827,12 @@ orthogonal, stochasticity-correlated content of $\sigma$.
 No retraining is required; the rule applies to any already-trained EX-HIQL
 checkpoint at essentially zero additional cost.
 
-\paragraph{Where the gains come from.}
-A useful way to see why Eq.~\eqref{eq:residual_sigma} can help even when
-Eq.~\eqref{eq:chiql_scoring} hurts is to rewrite the two rules as linear
-combinations of $\bar V$ and $\sigma^\perp$:
-\begin{align}
-  \text{plain:\quad}    & \bar V - \beta \sigma
-                        = (1 + \beta\gamma)\bar V - \beta\alpha - \beta\sigma^\perp, \\
-  \text{residual:\quad} & \bar V - \beta \sigma^\perp
-                        = \bar V - \beta\sigma^\perp.
-\end{align}
-The plain rule conflates two effects: a \emph{re-scaling} of $\bar V$ by
-$(1 + \beta\gamma) > 1$ (since $\gamma$ is negative, this reduces the effective
-weight on $\bar V$) and a \emph{true pessimism} correction $-\beta\sigma^\perp$.
-When $\gamma < 0$ is large in magnitude (as in C-HIQL and shared-trunk
-EX-HIQL where $\gamma \approx -0.12$), the re-scaling dominates and
-overwhelms $\sigma^\perp$; when $\gamma$ is smaller in magnitude
-(Phase-3b: $\gamma \approx -0.4$ to $-0.5$ but $|\bar V|$ is larger so the
-bulk term is still substantial), the residual rule isolates the
-pessimism correction cleanly.
+Expanding the two rules,
+$\bar V - \beta\sigma = (1 + \beta\gamma)\bar V - \beta\alpha - \beta\sigma^\perp$
+versus $\bar V - \beta\sigma^\perp$: the plain rule conflates a
+$\bar V$ re-scaling (by the $\beta\gamma$ term) with the true
+pessimism correction $-\beta\sigma^\perp$, whereas the residual rule
+isolates the pessimism correction cleanly.
 
 % ==========================================================
 \section{Validating the Cure: Geometric Diagnostics of EX-HIQL}
@@ -993,7 +891,7 @@ structurally present (per-head $\tau$ guarantees it) but too spatially
 flat to be useful at inference
 (Table~\ref{tab:teleport_overlay}).
 
-\begin{table*}[t]
+\begin{table}[h]
   \centering
   \caption{Diag~5: near/far $\sigma$ ratio and $d$-$\sigma$ correlation.
            $n_\text{near}$ counts dataset states within 3 world units of a
@@ -1015,69 +913,43 @@ flat to be useful at inference
            1.40 & $-0.05$ \\
     \bottomrule
   \end{tabular}
-\end{table*}
+\end{table}
 
-\paragraph{Interpretation.}
-This is, to our knowledge, the first direct empirical confirmation in the
+To our knowledge this is the first direct empirical confirmation in the
 ensemble-pessimism family that head-disagreement concentrates at the
-environment's known stochastic transitions---as opposed to being inferred
-from indirect performance differentials.
-It directly answers Diag~4: the anti-correlation between $\sigma$ and
-$\bar V$ that sank C-HIQL is attenuated under per-head $\tau$, and what
-remains is not noise but a geometrically-structured signal aligned with
-the dynamics.
-The shared-trunk contrast also clarifies a subtlety: the architecture
-with the \emph{cleaner} mechanism (shared trunk, $\sigma$-creep
-prevented) has the \emph{weaker} spatial signal, because the
-structural $\sigma > 0$ guarantee at stochastic states is preserved on
-shared features, but the magnitude is compressed below the noise floor
-for subgoal discrimination.
-Per-head $\tau$ requires independent trunks to produce a meaningfully
-state-dependent $\sigma$.
+environment's known stochastic transitions.
+The shared-trunk contrast clarifies a subtlety: the architecture with the
+\emph{cleaner} mechanism has the \emph{weaker} spatial signal, because
+shared features compress the $\sigma$ magnitude below the noise floor for
+subgoal discrimination---per-head $\tau$ requires independent trunks to
+produce a meaningfully state-dependent $\sigma$.
 
 % ----------------------------------------------------------
 \subsection{Diag 6: The Residual $\sigma^\perp$ Amplifies the Signal}
 \label{subsec:diag6}
 % ----------------------------------------------------------
 
-Diag~5 established that the raw $\sigma$ carries a
-stochasticity-correlated component, but the per-state
-$\operatorname{corr}(\bar V, \sigma)$ of $-0.41$ to $-0.64$
-(Table~\ref{tab:2x2}) says there is also a $\bar V$-correlated
-contaminant.
-The residual-$\sigma$ decomposition of
-Section~\ref{subsec:residual_sigma} predicts that subtracting the linear
-$\bar V$-dependence should (a) drive $\sigma^\perp$ toward zero at
-deterministic-region states where the theoretical prediction is
-$\sigma \to 0$, and (b) \emph{amplify} the distance-based correlation
-that Diag~5 measured.
-We test both predictions directly.
+Diag~5's raw $\sigma$ carries a stochasticity-correlated component but also a
+$\bar V$-correlated contaminant (Table~\ref{tab:2x2}).
+The residual decomposition of Section~\ref{subsec:residual_sigma} predicts that
+removing the linear $\bar V$-dependence should (a) drive $\sigma^\perp$ to
+zero at deterministic-region states, and (b) amplify the distance-based
+correlation.
+Using the same $N = 2000$-state sample from Diag~5, we fit
+$\sigma \approx \hat\alpha + \hat\gamma \bar V$ over $32\,000$
+$(\bar V, \sigma)$ points per seed and repeat the near/far analysis on
+$\sigma^\perp = \sigma - (\hat\alpha + \hat\gamma\bar V)$.
 
-\paragraph{Setup.}
-We re-use the same $N = 2000$ states per seed from Diag~5.
-For each candidate's $(\bar V, \sigma)$ we fit a per-checkpoint linear
-regression $\sigma \approx \hat\alpha + \hat\gamma\,\bar V$ over the
-$32\,000$ $(\bar V, \sigma)$ points per seed, and compute
-$\sigma^\perp = \sigma - (\hat\alpha + \hat\gamma\,\bar V)$
-per candidate.
-We then repeat the near/far split and the $d$-$\sigma^\perp$ correlation
-with $\sigma^\perp$ replacing $\sigma$.
+\paragraph{$\sigma^\perp$ vanishes at deterministic regions.}
+Fitted coefficients are $(\hat\alpha, \hat\gamma) = (6.4, -0.50), (17.8, -0.34),
+(15.0, -0.38)$ for the three seeds.
+The per-class $\sigma^\perp$ means are $(+7.4, +9.5, +13.6)$ near teleporters
+versus $(-0.5, -0.9, -0.7)$ far from them---essentially zero in the far class,
+consistent with the per-head expectile-fixed-point argument
+(Section~\ref{subsec:exhiql_design})
+(Table~\ref{tab:diag6}).
 
-\paragraph{Results: $\sigma^\perp$ vanishes at deterministic regions.}
-Fitted coefficients are $(\hat\alpha, \hat\gamma) =
-(6.4, -0.50), (17.8, -0.34), (15.0, -0.38)$ for the three seeds.
-Table~\ref{tab:diag6} reports the per-class statistics of $\sigma^\perp$
-alongside the raw-$\sigma$ statistics.
-The mean $\sigma^\perp$ at far-from-teleporter states is
-$-0.51, -0.86, -0.71$ across the three seeds---essentially zero,
-consistent with a near-deterministic transition as the per-head
-expectile-fixed-point argument of
-Section~\ref{subsec:exhiql_design} predicts.
-The mean $\sigma^\perp$ at teleport-adjacent states is
-$+7.4, +9.5, +13.6$: clearly positive and $8$--$14\times$ larger than
-the corresponding far-class mean.
-
-\begin{table*}[t]
+\begin{table}[h]
   \centering
   \caption{Diag~6: per-class statistics of the raw $\sigma$ versus the
            residual $\sigma^\perp$ on Phase-3b, 3 seeds, 2000 states
@@ -1103,30 +975,19 @@ the corresponding far-class mean.
                   & $+$10.18 & $-0.69$ & $+$10.87 & $\mathbf{-0.380}$ \\
     \bottomrule
   \end{tabular}
-\end{table*}
+\end{table}
 
-\paragraph{Results: $d$-$\sigma^\perp$ correlation strictly strengthens.}
-Across every seed, the Pearson correlation between distance-to-teleport
-and $\sigma^\perp$ is \emph{more negative} than the raw
-$d$-$\sigma$ correlation:
-$-0.313 \to -0.392$, $-0.375 \to -0.412$, $-0.300 \to -0.335$
-(Table~\ref{tab:diag6}, rightmost columns).
-The 3-seed mean correlation strengthens from $-0.33$ to
-$\mathbf{-0.38}$, a $15\%$ relative improvement.
-This confirms prediction (b) of the decomposition.
+\paragraph{$d$-$\sigma^\perp$ correlation strengthens.}
+Across every seed the $d$-$\sigma^\perp$ correlation is more negative than
+the raw $d$-$\sigma$: $-0.313 \to -0.392$, $-0.375 \to -0.412$, $-0.300 \to
+-0.335$ (Table~\ref{tab:diag6}), a 3-seed-mean strengthening from
+$-0.33 \to \mathbf{-0.38}$ ($15\%$ relative improvement).
+Figure~\ref{fig:diag6} shows the resulting spatial map: the residual
+concentrates around the teleport-in tiles while collapsing to near-zero
+beyond $d \gtrsim 6$, whereas raw $\sigma$ retains a substantial baseline
+($\sim 14$) at the same distances.
 
-\paragraph{Figure.}
-Figure~\ref{fig:diag6} visualises the result for seed~0.
-The top row compares spatial maps of $\sigma$ (left) and $\sigma^\perp$
-(right): the residual map is concentrated around the teleport-in tiles
-(red X markers), with the far-from-teleporter region driven to a
-uniform near-zero colour.
-The bottom row shows $\sigma$ and $\sigma^\perp$ against
-distance-to-teleport: $\sigma^\perp$ (green) collapses tightly toward
-zero for $d \gtrsim 6$, whereas raw $\sigma$ (blue) retains a substantial
-baseline offset ($\sim$14) at the same distances.
-
-\begin{figure*}[t]
+\begin{figure}[h]
   \centering
   \includegraphics[width=0.95\linewidth]{diag6_residual_overlay.png}
   \caption{Diag~6 on Phase-3b seed~0 ($N = 2000$ states).
@@ -1142,103 +1003,61 @@ baseline offset ($\sim$14) at the same distances.
              teleport-adjacent states.
            Red X: teleport-in; orange square: teleport-out.}
   \label{fig:diag6}
-\end{figure*}
+\end{figure}
 
-\paragraph{Interpretation.}
-Diag~6 confirms the two-component decomposition empirically: once the
-bulk $\bar V$-dependence is regressed out, what remains is a
-signal that (i)~vanishes at deterministic-region states, as the
-per-head-expectile-fixed-point theory predicts, and (ii)~correlates
-more strongly with teleporter proximity than raw $\sigma$ does.
-This directly validates the motivation for the residual-$\sigma$
-scoring rule of Section~\ref{subsec:residual_sigma}: the useful
-content of $\sigma$ is exactly $\sigma^\perp$.
+Diag~6 thus validates the two-component decomposition empirically and
+motivates the residual-$\sigma$ scoring rule: the useful
+stochasticity-specific content of $\sigma$ is precisely $\sigma^\perp$.
 
 % ----------------------------------------------------------
 \subsection{Diag 7: Scoring-Filtered Subgoal Density}
 \label{subsec:diag7}
 % ----------------------------------------------------------
 
-Diag~3 (Section~\ref{subsec:diag3}) showed that HIQL's $\pi_\text{high}$,
-at a fixed $(s, g)$ pair, collapses almost all 1000 sampled subgoal
-proposals onto the teleport-out tile at $(24, 0)$.
-Under EX-HIQL the high-level actor is trained bit-identically to HIQL
-(Design A), so the \emph{sampled} distribution should remain
-pathological---the fix lives at the \emph{scoring} step, not at the
-sampling step.
-Diag~7 visualises this separation: we want to see that (a) EX-HIQL's
-$\pi_\text{high}$ samples are still dominated by the teleport-out
-attractor, and (b) residual-$\sigma$ scoring rejects the
-teleport-out-heavy candidates and redirects selection toward the
-goal-side of the maze.
+Diag~3 (Section~\ref{subsec:diag3}) showed HIQL's $\pi_\text{high}$
+collapses subgoal proposals onto the teleport-out tile at $(24, 0)$.
+EX-HIQL trains $\pi_\text{high}$ bit-identically to HIQL (Design~A), so
+the \emph{sampled} distribution should remain pathological; the fix lives
+at \emph{scoring}.
+Diag~7 visualises this separation.
 
-\paragraph{Setup.}
-For the task-1 $(s, g)$ pair (agent at $(35.1, 0.0)$; goal at
-$(0.1, 24.3)$) we sample $N = 1000$ subgoal representations from
-EX-HIQL Phase-3b's $\pi_\text{high}(\cdot \mid s, g)$ and decode each
-back to XY via nearest-neighbour lookup in the same $\phi([o; o])$
-embedding space as Diag~3, using a 10\,000-observation dataset bank.
-We then compute $(\bar V, \sigma)$ across the 5 value heads for each
-candidate, fit the per-checkpoint residual-$\sigma$ coefficients
-$(\hat\alpha, \hat\gamma)$ (here $(5.83, -0.54)$), and rank candidates
-by the residual scoring rule of
-Eq.~\eqref{eq:residual_sigma} with
-$\beta_\text{pes} = 0.5$.
-\textbf{Panel~A} visualises the density of all 1000 decoded XYs;
-\textbf{Panel~B} visualises the density of the top-$K = 50$ candidates
-retained after the residual filter.
-To quantify the redistribution we report two metrics per panel:
-\emph{frac near (24,0)}, the fraction of candidates within 3 world
-units of the bad teleport-out tile that Diag~3 identified as HIQL's
-attractor; and \emph{frac $y \ge 10$}, the fraction in the top half of
-the maze (the goal lies at $y = 24$).
+For the task-1 $(s, g)$ pair (agent at $(35.1, 0.0)$; goal at $(0.1, 24.3)$)
+we sample $N{=}1000$ subgoal representations from Phase-3b's
+$\pi_\text{high}$, decode each back to XY via the same nearest-neighbour
+$\phi([o; o])$ lookup as Diag~3 using a 10\,000-observation dataset bank,
+fit per-checkpoint $(\hat\alpha, \hat\gamma) = (5.83, -0.54)$, and rank
+candidates by the residual-$\sigma$ rule Eq.~\eqref{eq:residual_sigma}
+at $\beta_\text{pes} = 0.5$.
+Panel~A of Figure~\ref{fig:diag7} plots all 1000 raw decoded XYs;
+Panel~B plots only the top-$K{=}50$ retained by the residual filter.
+We measure \emph{frac near $(24{,}0)$} (within 3 world units of the
+teleport-out attractor that sank HIQL) and \emph{frac $y{\geq}10$} (top
+half of the maze, where the goal sits at $y = 24$).
 
-\paragraph{Results.}
-Panel~A reproduces Diag~3's pathology on the Phase-3b checkpoint: the
-raw $\pi_\text{high}$ density puts \textbf{36\%} of sampled candidates
-within 3 world units of $(24, 0)$ and only \textbf{4\%} of candidates
-in the goal-side half of the maze ($y \ge 10$).
-Panel~B, the top-50 candidates after residual-$\sigma$ scoring, flips
-both metrics in the expected direction: the fraction near $(24, 0)$
-drops to \textbf{20\%} (a \textbf{44\% relative reduction}, absolute
-$-16$ pt), and the fraction heading toward the goal climbs to
-\textbf{16\%} (a \textbf{3.6$\times$} relative increase, absolute $+12$
-pt).
-Figure~\ref{fig:diag7} shows the side-by-side comparison.
+Panel~A reproduces Diag~3's pathology on the Phase-3b checkpoint: the raw
+density puts \textbf{36\%} of samples within 3 units of $(24, 0)$ and only
+\textbf{4\%} in the goal-side half.
+Panel~B flips both metrics: near-$(24{,}0)$ collapses from $36\% \to 20\%$
+(absolute $-16$\,pt, $44\%$ relative reduction); goal-side rises
+$4\% \to 16\%$ (absolute $+12$\,pt, $3.6\times$ relative increase).
 
-\begin{figure*}[t]
+\begin{figure}[h]
   \centering
-  \includegraphics[width=\linewidth]{diag7_subgoal_density_filtered.png}
-  \caption{Diag~7: $\pi_\text{high}$ subgoal density on EX-HIQL
-    Phase-3b (seed~0, task~1; $N = 1000$ samples; $(\hat\alpha,
-    \hat\gamma) = (5.83, -0.54)$).
-    Blue circle: agent; gold star: goal; red X: teleport-in; orange
-    square: teleport-out.
-    \textbf{Panel A} is the raw $\pi_\text{high}$ density, identifying
-    the same pathology as Phase-1 Diag~3: 36\% of proposals collapse
-    within 3 world units of the $(24, 0)$ teleport-out attractor and
-    only 4\% head toward the goal ($y \ge 10$).
-    \textbf{Panel B} shows the top-50 candidates after residual-$\sigma$
-    scoring (Eq.~\eqref{eq:residual_sigma}): the teleport-out collapse
-    shrinks to 20\% and the fraction heading toward the goal rises to
-    16\%---a 4$\times$ redistribution despite $\pi_\text{high}$ being
-    unchanged relative to HIQL.}
+  \includegraphics[width=0.92\linewidth]{diag7_subgoal_density_filtered.png}
+  \caption{Diag~7: $\pi_\text{high}$ subgoal density on Phase-3b (seed~0,
+    task~1; $N{=}1000$). Panel~A is the raw density; Panel~B is the top-50
+    after residual-$\sigma$ filtering. Teleport-out collapse
+    $36\%{\to}20\%$; goal-side fraction $4\%{\to}16\%$.}
   \label{fig:diag7}
-\end{figure*}
+\end{figure}
 
-\paragraph{Interpretation.}
-The contrast between the two panels is direct evidence that the
-residual-$\sigma$ scoring step is doing what Diag~5 and Diag~6 predict
-it should: using $\sigma^\perp$ as a stochasticity-specific pessimism
-signal, the scorer systematically down-weights candidates that the
-learned value function has inflated via the lucky-teleport mechanism
-identified in Section~\ref{sec:hiql_analysis}, and up-weights the
-sparse-but-valid proposals that head toward the true goal.
-Taken together with Diag~3's counterpart figure
-(Figure~\ref{fig:diag3_density}), the disease-and-cure contrast is
-visible at the same coordinate scale:
-\emph{the pathological subgoal distribution has not been trained away,
-it has been re-scored away}.
+The contrast is direct evidence that the residual-$\sigma$ scoring step
+down-weights lucky-teleport-inflated candidates and up-weights
+sparse-but-valid proposals toward the goal.
+With Diag~3's counterpart figure (Figure~\ref{fig:diag3_density}), the
+disease-vs-cure contrast is visible at the same coordinate scale:
+\emph{the pathological distribution has not been trained away---it has
+been re-scored away}.
 
 % ==========================================================
 \section{Benchmark Results}
@@ -1264,7 +1083,7 @@ Adding residual-$\sigma$ scoring to the same Phase-3b checkpoint yields
 modification---\textbf{+2.5 points} total over HIQL
 (Table~\ref{tab:main_results}).
 
-\begin{table*}[t]
+\begin{table}[h]
   \centering
   \caption{Step-1M overall-success rate on
            \texttt{antmaze-teleport-navigate-v0}, 3-seed mean, inference
@@ -1288,7 +1107,7 @@ modification---\textbf{+2.5 points} total over HIQL
                              & (same checkpoint) & ---                   & \textbf{0.429} & \textbf{+2.5} \\
     \bottomrule
   \end{tabular}
-\end{table*}
+\end{table}
 
 \paragraph{Scoring-rule ablation.}
 Because $\beta_\text{pes}$ enters only at inference,
@@ -1300,7 +1119,7 @@ ranks over the $K = 16$ candidates per state) and normalised scoring
 ($\bar V - \beta\,\sigma/(|\bar V|+1)$), evaluated on the identical
 Phase-3b step-1M checkpoint.
 
-\begin{table*}[t]
+\begin{table}[h]
   \centering
   \caption{Scoring-rule ablation on the Phase-3b step-1M checkpoint;
            3-seed mean.
@@ -1320,7 +1139,7 @@ Phase-3b step-1M checkpoint.
     \textbf{residual-$\sigma$ (ours)} & 0.431 & \textbf{0.429} & 0.399 & \textbf{0.429} \\
     \bottomrule
   \end{tabular}
-\end{table*}
+\end{table}
 
 \paragraph{Convergent evidence.}
 Three mechanistically distinct decouplings of $\sigma$ from $\bar V$---
@@ -1345,66 +1164,36 @@ already-trained checkpoint.
 \label{sec:discussion}
 % ==========================================================
 
-\paragraph{Depth over breadth.}
-Our empirical evaluation is restricted to a single environment,
-\texttt{antmaze-teleport-navigate-v0}.
-This is a deliberate scope choice rather than a measurement limitation:
-the method's mechanism is specifically predicated on stochastic
-transitions, so the environment where the mechanism is expected to
-matter most is also the environment where we can most cleanly test it.
-Systematic geometric diagnostics (Diag~5, the $2 \times 2$ architecture
-ablation, three convergent scoring rules) carry more information about
-what the method is doing than a broader but shallower sweep would.
-Extending the evaluation to other stochastic variants---
-\texttt{pointmaze-teleport-navigate-v0} and
-\texttt{antmaze-teleport-stitch-v0} are the most natural next targets---
-and verifying no regression on deterministic variants
-(\texttt{antmaze-large-navigate-v0}) are planned as immediate follow-up
-work.
+\paragraph{Scope and robustness.}
+Our empirical evaluation is restricted to
+\texttt{antmaze-teleport-navigate-v0}---a deliberate depth-over-breadth
+choice, since the method's mechanism is predicated on stochastic
+transitions.
+The +2.5-point improvement over HIQL sits inside the $\pm 3$-point
+eval-noise floor, but two factors support it: all three seeds
+individually beat the plain-$\beta=0.5$ baseline under the residual
+rule, and three mechanistically distinct decoupling rules
+(residual, rank, higher $\beta$) converge on the same $0.43$ ceiling.
+Natural follow-ups are (i) more seeds with bootstrapped confidence
+intervals, (ii) multi-env evaluation on
+\texttt{pointmaze-teleport-navigate-v0},
+\texttt{antmaze-teleport-stitch-v0}, and the deterministic
+\texttt{antmaze-large-navigate-v0} as a regression check.
 
-\paragraph{Effect size and eval noise.}
-The +2.5-point improvement of the final method over HIQL sits inside the
-$\pm 3$-point noise floor of a single 50-episode evaluation on
-stochastic \texttt{antmaze-teleport}.
-Two factors compensate for this: (1) all three seeds individually
-exceed the plain-$\beta_\text{pes}=0.5$ baseline in the residual-$\sigma$
-condition, which is not attributable to a single unlucky baseline
-seed; (2) three mechanistically distinct decoupling rules converge to
-the same ceiling, so the ceiling is not a property of any particular
-inference rule.
-Nevertheless, running additional seeds (e.g., 10 per configuration) and
-computing properly-bootstrapped confidence intervals would tighten the
-claim and is a natural robustness check.
-
-\paragraph{$\sigma$-creep and extensions.}
-Phase-3b's $\sigma$ drifts from $\sim$4 to $\sim$17 over 1\,M training
-steps (Section~\ref{subsec:exhiql_stability}); though never explosive,
-this drift pushes $\beta_\text{pes}\sigma$ out of the
-$\le\!15\%$-of-$|\bar V|$ regime it was designed for in the second half
-of training.
-Two remediations are natural extensions.
-First, a $\sigma$-aware $\beta$ schedule at inference---e.g.\
-$\beta(\sigma) = 0.5 \cdot \min(1,\,8/\sigma)$---automatically holds
-$\beta_\text{pes}\sigma/|\bar V|$ near the target ratio as training
-progresses.
-Second, a Tikhonov-style L2 regulariser on the per-head last-layer
-weights' deviation from the head-mean would bound the
-expectile-fixed-point spread directly during training, potentially
-preserving Phase-3b's step-400k performance peak through step-1M.
-Preliminary code for the second variant is implemented on a branch
-(\texttt{phase3c-l2reg}) but not yet benchmarked.
-
-\paragraph{Scope of the anti-correlation diagnosis.}
-Diag~4's $-0.44$ per-state $\sigma_V$--$\bar V$ correlation is reported
-for one C-HIQL configuration.
-We have no reason to expect it is specific to HIQL's architecture or to
-\texttt{antmaze-teleport}: the mechanism argument
-(identically-trained deep nets converge to approximately the same
-function; residual disagreement scales with feature magnitude) applies
-to any random-initialisation ensemble under a single training objective.
-Verifying the diagnosis on flat offline RL ensembles (EDAC, SAC-$N$)
-would both strengthen the critique and broaden the applicability of the
-residual-$\sigma$ correction as a generic post-processing tool.
+\paragraph{Extensions.}
+Phase-3b's $\sigma$ drifts $4 \to 17$ over 1\,M training steps,
+pushing $\beta_\text{pes}\sigma$ past its designed $\le\!15\%$-of-$|\bar V|$
+regime in late training.
+Two remediations are natural: a $\sigma$-aware $\beta$ schedule at
+inference (e.g.\ $\beta(\sigma) = 0.5 \cdot \min(1,\,8/\sigma)$), and
+an L2 regulariser on the per-head output weights' deviation from the
+head-mean at training time (implemented on a branch but not yet
+benchmarked).
+Diag~4's anti-correlation argument applies to any random-initialisation
+ensemble sharing a single training objective, so verifying the diagnosis
+on flat offline-RL ensembles (EDAC, SAC-$N$) would both broaden the
+critique and the applicability of residual-$\sigma$ as a generic
+post-processing tool.
 
 \paragraph{Conclusion.}
 HIQL's collapse on stochastic offline hierarchical GCRL has, at root, a
